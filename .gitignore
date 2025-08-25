@@ -1,0 +1,22 @@
+# dependencies
+node_modules/
+.pnp.cjs
+.pnp.loader.mjs
+
+# next
+.next/
+out/
+.next-static/
+.next-turbo/
+.vercel/
+
+# env
+.env*
+!.env.example
+
+# editor
+.vscode/
+.idea/
+
+# os
+.DS_Store

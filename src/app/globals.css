@@ -1,0 +1,36 @@
+@import "tailwindcss";
+
+/* ---- HAVRE theme tokens (Tailwind v4) ---- */
+@theme {
+  /* Fonts */
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-serif: 'EB Garamond', ui-serif, serif;
+
+  /* Brand colors */
+  --color-ivory: #F8F6F1;
+  --color-midnight: #0D1B2A;
+  --color-emerald: #0C7C59;
+  --color-beige: #D6C6B8;
+  --color-terracotta: #C97B5A;
+  --color-gold: #D4AF37;
+
+  /* App surface defaults */
+  --color-background: var(--color-ivory);
+  --color-foreground: var(--color-midnight);
+}
+
+/* Optional dark palette tweak (can keep simple for now) */
+@media (prefers-color-scheme: dark) {
+  @theme {
+    --color-background: #0a0a0a;
+    --color-foreground: #ededed;
+  }
+}
+
+/* Base document styles */
+html, body { max-width: 100%; overflow-x: hidden; }
+body {
+  background: var(--color-background);
+  color: var(--color-foreground);
+  font-family: var(--font-sans);
+}

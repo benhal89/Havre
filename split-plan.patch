@@ -1,0 +1,429 @@
+diff --git a/src/app/plan/types.ts b/src/app/plan/types.ts
+new file mode 100644
+index 0000000..1111111
+--- /dev/null
++++ b/src/app/plan/types.ts
+@@ -0,0 +1,34 @@
++export type Activity = {
++  time?: string
++  title: string
++  details?: string
++  mapUrl?: string
++  tags?: string[]
++  lat?: number
++  lng?: number
++}
++
++export type DayPlan = {
++  date?: string
++  activities: Activity[]
++}
++
++export type Itinerary = {
++  days: DayPlan[]
++  notes?: string
++}
++
++export type NearbyPlace = {
++  id: string
++  name: string
++  lat: number
++  lng: number
++  tags: string[] | null
++  summary: string | null
++  url: string | null
++  distance_km: number
++  is_open: boolean
++}
+diff --git a/src/app/plan/components/SummaryHeader.tsx b/src/app/plan/components/SummaryHeader.tsx
+new file mode 100644
+index 0000000..2222222
+--- /dev/null
++++ b/src/app/plan/components/SummaryHeader.tsx
+@@ -0,0 +1,49 @@
++'use client'
++import Link from 'next/link'
++import { MapPin } from 'lucide-react'
++
++type Props = {
++  destination: string
++  daysCount?: number
++  homeName?: string
++  hours: string
++  pace: string
++  budgetLabel: string
++}
++
++export default function SummaryHeader({
++  destination,
++  daysCount,
++  homeName,
++  hours,
++  pace,
++  budgetLabel,
++}: Props) {
++  return (
++    <div className="min-w-0">
++      <div className="truncate text-sm text-slate-500">
++        <Link href="/" className="text-sky-700 hover:underline">Havre</Link> / Planner
++      </div>
++      <div className="truncate text-lg font-semibold text-slate-900">
++        {destination} · {typeof daysCount === 'number' ? `${daysCount} days` : 'Planning'}
++      </div>
++      <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-600">
++        {homeName ? (
++          <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5">
++            <MapPin className="h-3.5 w-3.5" /> {homeName}
++          </span>
++        ) : null}
++        <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5">
++          hours: {hours === 'early' ? 'Early bird' : hours === 'late' ? 'Late riser' : 'Balanced'}
++        </span>
++        <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5">
++          pace: {pace === 'chill' ? 'Chill' : pace === 'packed' ? 'Packed' : 'Balanced'}
++        </span>
++        <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5">
++          budget: {budgetLabel}
++        </span>
++      </div>
++    </div>
++  )
++}
+diff --git a/src/app/plan/components/ItineraryMap.tsx b/src/app/plan/components/ItineraryMap.tsx
+new file mode 100644
+index 0000000..3333333
+--- /dev/null
++++ b/src/app/plan/components/ItineraryMap.tsx
+@@ -0,0 +1,98 @@
++'use client'
++import { useEffect, useRef } from 'react'
++import type { DayPlan } from '../types'
++
++const COLORS = ['#0ea5e9', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#22c55e']
++
++export default function ItineraryMap({ days }: { days: DayPlan[] }) {
++  const ref = useRef<HTMLDivElement>(null)
++
++  useEffect(() => {
++    const g = (window as any).google
++    if (!g?.maps || !ref.current) return
++
++    const map = new g.maps.Map(ref.current, {
++      mapTypeControl: false,
++      streetViewControl: false,
++      fullscreenControl: false,
++      zoom: 12,
++      center: { lat: 48.8566, lng: 2.3522 },
++    })
++
++    const bounds = new g.maps.LatLngBounds()
++
++    days.forEach((day, di) => {
++      const pts = (day.activities || [])
++        .filter(a => typeof a.lat === 'number' && typeof a.lng === 'number')
++        .map(a => ({ lat: a.lat as number, lng: a.lng as number, title: a.title }))
++      const color = COLORS[di % COLORS.length]
++
++      const path: any[] = []
++      pts.forEach((p, i) => {
++        new g.maps.Marker({
++          position: p,
++          map,
++          label: `${di + 1}.${i + 1}`,
++          title: p.title,
++        })
++        bounds.extend(p)
++        path.push(p)
++      })
++      if (path.length >= 2) {
++        new g.maps.Polyline({
++          path,
++          strokeColor: color,
++          strokeWeight: 3,
++          map,
++        })
++      }
++    })
++
++    if (!bounds.isEmpty()) map.fitBounds(bounds, 60)
++  }, [days])
++
++  return (
++    <div className="rounded-2xl border bg-white p-4 shadow-sm">
++      <div className="mb-2 text-sm font-semibold">Itinerary map (all days)</div>
++      <div ref={ref} className="h-[420px] w-full rounded-lg border" />
++      <div className="mt-2 text-xs text-slate-500">
++        Markers are labeled as <strong>Day.Activity</strong>. Colors separate days.
++      </div>
++    </div>
++  )
++}
+diff --git a/src/app/plan/components/PlaceCard.tsx b/src/app/plan/components/PlaceCard.tsx
+new file mode 100644
+index 0000000..4444444
+--- /dev/null
++++ b/src/app/plan/components/PlaceCard.tsx
+@@ -0,0 +1,66 @@
++'use client'
++import type { Activity } from '../types'
++import { ExternalLink, RefreshCw, Clock } from 'lucide-react'
++
++export default function PlaceCard({
++  a,
++  onSwap,
++}: {
++  a: Activity
++  onSwap?: () => void
++}) {
++  return (
++    <div className="flex items-start gap-4 px-4 py-4">
++      <div className="w-16 shrink-0">
++        <div className="flex items-center gap-1 text-xs text-slate-500">
++          <Clock className="h-3.5 w-3.5" />
++          <span>{a.time || '--:--'}</span>
++        </div>
++      </div>
++      <div className="min-w-0 flex-1">
++        <div className="text-sm font-medium text-slate-900">{a.title}</div>
++        {a.details ? (
++          <div className="mt-1 text-sm text-slate-600">{a.details}</div>
++        ) : null}
++        {a.tags && a.tags.length ? (
++          <div className="mt-2 flex flex-wrap gap-2">
++            {a.tags.map((t, k) => (
++              <span
++                key={k}
++                className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs text-slate-700"
++              >
++                {t}
++              </span>
++            ))}
++          </div>
++        ) : null}
++      </div>
++      <div className="flex shrink-0 flex-col items-end gap-2">
++        {a.mapUrl ? (
++          <a
++            href={a.mapUrl}
++            target="_blank"
++            rel="noreferrer"
++            className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium text-slate-800 hover:bg-slate-50"
++          >
++            <ExternalLink className="h-3.5 w-3.5" />
++            Map
++          </a>
++        ) : null}
++        {onSwap && (
++          <button
++            onClick={onSwap}
++            className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium text-slate-800 hover:bg-slate-50"
++          >
++            <RefreshCw className="h-3.5 w-3.5" />
++            Swap
++          </button>
++        )}
++      </div>
++    </div>
++  )
++}
+diff --git a/src/app/plan/components/DayList.tsx b/src/app/plan/components/DayList.tsx
+new file mode 100644
+index 0000000..5555555
+--- /dev/null
++++ b/src/app/plan/components/DayList.tsx
+@@ -0,0 +1,53 @@
++'use client'
++import type { DayPlan } from '../types'
++import PlaceCard from './PlaceCard'
++import { Footprints } from 'lucide-react'
++import { motion, AnimatePresence } from 'framer-motion'
++
++export default function DayList({
++  days,
++  onSwap,
++}: {
++  days: DayPlan[]
++  onSwap?: () => void
++}) {
++  return (
++    <div className="space-y-8">
++      <AnimatePresence initial={false}>
++        {days.map((day, idx) => (
++          <motion.div
++            key={idx}
++            initial={{ opacity: 0, y: 8 }}
++            animate={{ opacity: 1, y: 0 }}
++            exit={{ opacity: 0, y: -6 }}
++            className="overflow-hidden rounded-2xl border bg-white shadow-sm"
++          >
++            <div className="flex items-center justify-between border-b bg-slate-50/60 px-4 py-3">
++              <div className="text-sm font-semibold">Day {idx + 1}</div>
++              <div className="flex items-center gap-2 text-xs text-slate-600">
++                <Footprints className="h-4 w-4" />
++                <span>Balanced walking</span>
++              </div>
++            </div>
++            <div className="divide-y">
++              {day.activities?.map((a, j) => (
++                <PlaceCard key={j} a={a} onSwap={onSwap} />
++              ))}
++            </div>
++          </motion.div>
++        ))}
++      </AnimatePresence>
++    </div>
++  )
++}
+diff --git a/src/app/plan/page.tsx b/src/app/plan/page.tsx
+index eeeeeee..6666666 100644
+--- a/src/app/plan/page.tsx
++++ b/src/app/plan/page.tsx
+@@ -1,24 +1,19 @@
+ 'use client'
+ 
+-import { useEffect, useMemo, useState } from 'react'
++import { useEffect, useMemo, useState } from 'react'
+ import { useRouter, useSearchParams } from 'next/navigation'
+-import Link from 'next/link'
+-import { motion, AnimatePresence } from 'framer-motion'
+-import {
+-  MapPin, RefreshCw, Mail, Share2, Download, ExternalLink, Clock, Star, Footprints, LocateFixed,
+-} from 'lucide-react'
+-
+-type Activity = {
+-  time?: string
+-  title: string
+-  details?: string
+-  mapUrl?: string
+-  tags?: string[]
+-  lat?: number
+-  lng?: number
+-}
+-
+-type DayPlan = {
+-  date?: string               // ignored for display now
+-  activities: Activity[]
+-}
++import { AnimatePresence } from 'framer-motion'
++import { RefreshCw, Mail, Share2, Download, LocateFixed, Star } from 'lucide-react'
++import SummaryHeader from './components/SummaryHeader'
++import ItineraryMap from './components/ItineraryMap'
++import DayList from './components/DayList'
++import type { Itinerary, Activity } from './types'
+@@
+   const [nowOpen, setNowOpen] = useState(false)
+@@
+-  return (
++  return (
+     <div className="min-h-screen bg-white">
+       {/* Sticky header */}
+       <div className="sticky top-0 z-30 border-b bg-white/95 backdrop-blur">
+         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
+-          <div className="min-w-0">
+-            <div className="truncate text-sm text-slate-500">
+-              <Link href="/" className="text-sky-700 hover:underline">Havre</Link> / Planner
+-            </div>
+-            {/* CHANGED: no real dates; show destination + days count if available */}
+-            <div className="truncate text-lg font-semibold text-slate-900">
+-              {destination} · {plan?.days?.length ? `${plan.days.length} days` : 'Planning'}
+-            </div>
+-            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-600">
+-              {homeName ? (
+-                <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5">
+-                  <MapPin className="h-3.5 w-3.5" /> {homeName}
+-                </span>
+-              ) : null}
+-              <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5">hours: {labelHours(hours)}</span>
+-              <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5">pace: {labelPace(pace)}</span>
+-              <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5">budget: {budgetLabel(budget)}</span>
+-            </div>
+-          </div>
++          <SummaryHeader
++            destination={destination}
++            daysCount={plan?.days?.length}
++            homeName={homeName}
++            hours={hours}
++            pace={pace}
++            budgetLabel={budgetLabel(budget)}
++          />
+           <div className="flex shrink-0 flex-wrap items-center gap-2">
+             <button onClick={() => setNowOpen(true)} className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50" title="Find great places near me">
+               <LocateFixed className="h-4 w-4" /> Near me
+             </button>
+             <button onClick={onRegenerate} className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50">
+               <RefreshCw className="h-4 w-4" /> Regenerate
+             </button>
+@@
+-        {/* Layout: left plan, right map/summary */}
+-        <div className="grid gap-6 lg:grid-cols-[1fr,370px]">
++        {/* Layout: left plan, right map */}
++        <div className="grid gap-6 lg:grid-cols-[1fr,420px]">
+           <div>
+@@
+-            {plan && !loading && (
+-              <div className="space-y-8">
+-                <AnimatePresence initial={false}>
+-                  {plan.days.map((day, idx) => (
+-                    <motion.div
+-                      key={idx}
+-                      initial={{ opacity: 0, y: 8 }}
+-                      animate={{ opacity: 1, y: 0 }}
+-                      exit={{ opacity: 0, y: -6 }}
+-                      className="overflow-hidden rounded-2xl border bg-white shadow-sm"
+-                    >
+-                      <div className="flex items-center justify-between border-b bg-slate-50/60 px-4 py-3">
+-                        <div className="text-sm font-semibold">Day {idx + 1}</div>
+-                        <div className="flex items-center gap-2 text-xs text-slate-600">
+-                          <Footprints className="h-4 w-4" />
+-                          <span>Balanced walking</span>
+-                        </div>
+-                      </div>
+-                      <div className="divide-y">
+-                        {day.activities?.map((a, j) => (
+-                          <div key={j} className="flex items-start gap-4 px-4 py-4">
+-                            ...
+-                          </div>
+-                        ))}
+-                      </div>
+-                    </motion.div>
+-                  ))}
+-                </AnimatePresence>
+-                {plan.notes ? (
+-                  <div className="rounded-2xl border bg-slate-50 p-4 text-sm text-slate-700">
+-                    <div className="mb-1 flex items-center gap-1 font-medium">
+-                      <Star className="h-4 w-4" /> Tips
+-                    </div>
+-                    {plan.notes}
+-                  </div>
+-                ) : null}
+-              </div>
+-            )}
++            {plan && !loading && (
++              <>
++                <DayList days={plan.days} onSwap={onRegenerate} />
++                {plan.notes ? (
++                  <div className="rounded-2xl border bg-slate-50 p-4 text-sm text-slate-700">
++                    <div className="mb-1 flex items-center gap-1 font-medium">
++                      <Star className="h-4 w-4" /> Tips
++                    </div>
++                    {plan.notes}
++                  </div>
++                ) : null}
++              </>
++            )}
+@@
+-          {/* RIGHT PANEL: Map, summary & metrics for Day 1 */}
+-          <aside className="sticky top-[76px] self-start">
+-            <div className="rounded-2xl border bg-white p-4 shadow-sm">
+-              ...
+-            </div>
+-          </aside>
++          {/* RIGHT PANEL: All-days map */}
++          <aside className="sticky top-[76px] self-start">
++            <ItineraryMap days={plan?.days || []} />
++          </aside>
+         </div>
+       </div>
+     </div>
+   )
+ }

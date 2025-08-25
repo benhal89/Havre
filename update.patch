@@ -1,0 +1,210 @@
+--- a/src/app/plan/page.tsx
++++ b/src/app/plan/page.tsx
+@@
+-import { useEffect, useMemo, useState } from 'react'
++import { useEffect, useMemo, useRef, useState } from 'react'
+@@
+   tags?: string[]
++  lat?: number
++  lng?: number
+ }
+@@
+ const DEFAULT_INTERESTS = 'food, art, hidden gems'
+ 
++/* ---------- helpers used in header + map ---------- */
++function summarizeTop({
++  destination, days, hours, pace, budget, interests,
++}: { destination: string; days: number; hours: string; pace: string; budget: string; interests: string }) {
++  const dayPart = `${days}-day trip in ${destination}`
++  const hoursText = hours === 'early' ? 'early bird' : hours === 'late' ? 'late riser' : 'balanced hours'
++  const paceText = pace === 'chill' ? 'chilled pace' : pace === 'packed' ? 'packed pace' : 'balanced pace'
++  const budgetLabel = ['Shoestring','Value','Comfort','Premium','Luxury'][Math.min(Math.max(Number(budget),1),5)-1]
++  // pull two interest labels for a short focus line
++  const focus = interests
++    .split(',').map(s=>s.trim()).filter(Boolean)
++    .filter(s => !/^(budget|home_base|hours|pace|freeform|seed):/.test(s))
++    .slice(0,2).join(' and ') || 'local highlights'
++  return {
++    line1: `${dayPart} that fits your ${hoursText}, ${paceText}, and ${budgetLabel.toLowerCase()} spending preferences.`,
++    line2: `It’s focused on ${focus}.`,
++  }
++}
++
++function haversineKm(a:{lat:number,lng:number}, b:{lat:number,lng:number}) {
++  const R = 6371, dLat=(b.lat-a.lat)*Math.PI/180, dLng=(b.lng-a.lng)*Math.PI/180
++  const la1=a.lat*Math.PI/180, la2=b.lat*Math.PI/180
++  const x=Math.sin(dLat/2)**2+Math.cos(la1)*Math.cos(la2)*Math.sin(dLng/2)**2
++  return 2*R*Math.asin(Math.sqrt(x))
++}
++
++function CombinedMap({ days }: { days: DayPlan[] }) {
++  const ref = useRef<HTMLDivElement>(null)
++  useEffect(() => {
++    const g = (window as any).google
++    if (!g?.maps || !ref.current) return
++    const map = new g.maps.Map(ref.current, {
++      mapTypeControl: false, streetViewControl: false, fullscreenControl: false, zoom: 12,
++      center: { lat: 48.8566, lng: 2.3522 }, // Paris fallback
++    })
++    const bounds = new g.maps.LatLngBounds()
++    const colors = ['#0ea5e9','#10b981','#f59e0b','#ef4444','#8b5cf6']
++    days.forEach((d, di) => {
++      const pts = d.activities
++        .filter(a => a.lat!=null && a.lng!=null)
++        .map(a => ({ lat: a.lat as number, lng: a.lng as number, title: a.title }))
++      pts.forEach((p, pi) => {
++        new g.maps.Marker({ position: p, label: `${di+1}.${pi+1}`, title: p.title, map })
++        bounds.extend(p)
++      })
++      if (pts.length>1) new g.maps.Polyline({ path: pts, strokeColor: colors[di%colors.length], strokeWeight: 3, map })
++    })
++    if (!bounds.isEmpty()) map.fitBounds(bounds, 50)
++  }, [days])
++  return <div ref={ref} className="h-[360px] w-full rounded-xl border" />
++}
++
++function staticThumb(a: Activity) {
++  if (a.lat==null || a.lng==null) return null
++  const key = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY
++  if (!key) return null
++  const url = `https://maps.googleapis.com/maps/api/staticmap?center=${a.lat},${a.lng}&zoom=15&size=320x200&markers=${a.lat},${a.lng}&scale=2&key=${key}`
++  return url
++}
++
+ function Spinner({ label = 'Planning…' }: { label?: string }) {
+@@
+   const dates = params?.get('dates') || buildDatesFromToday(3)
+   const interestsParam = params?.get('i') || DEFAULT_INTERESTS
+@@
+   const [openOnly, setOpenOnly] = useState(false)
+@@
+   }, [interestsParam, budget, home, hours, pace, q, seed])
+@@
+-  return (
+-    <div className="min-h-screen bg-white">
+-      {/* Sticky header */}
+-      <div className="sticky top-0 z-30 border-b bg-white/95 backdrop-blur">
+-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
+-          <div className="min-w-0">
+-            <div className="truncate text-sm text-slate-500">
+-              <Link href="/" className="text-sky-700 hover:underline">Havre</Link> / Planner
+-            </div>
+-            <div className="truncate text-lg font-semibold text-slate-900">
+-              {destination} · {dates}
+-            </div>
+-            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-600">
++  const topSummary = summarizeTop({
++    destination,
++    days: plan?.days?.length || Number(dates.match(/\d+/)?.[0] || 3),
++    hours, pace, budget, interests: interestsParam,
++  })
++
++  return (
++    <div className="min-h-screen bg-white">
++      {/* Sticky header */}
++      <div className="sticky top-0 z-30 border-b bg-white/95 backdrop-blur">
++        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
++          <div className="min-w-0">
++            <div className="truncate text-sm text-slate-500">
++              <Link href="/" className="text-sky-700 hover:underline">Havre</Link> / Planner
++            </div>
++            {/* NEW: friendly summary instead of dates */}
++            <div className="truncate text-lg font-semibold text-slate-900">
++              {topSummary.line1}
++            </div>
++            <div className="text-sm text-slate-700">{topSummary.line2}</div>
++            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-600">
+               {home ? (
+                 <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5">
+                   <MapPin className="h-3.5 w-3.5" /> {home}
+                 </span>
+               ) : null}
+               <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5">hours: {labelHours(hours)}</span>
+               <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5">pace: {labelPace(pace)}</span>
+               <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5">budget: {budgetLabel(budget)}</span>
+             </div>
+           </div>
+           <div className="flex shrink-0 flex-wrap items-center gap-2">
+@@
+-      <div className="mx-auto max-w-6xl px-4 py-6">
++      <div className="mx-auto max-w-6xl px-4 py-6">
++        {/* NEW: top row with summary (left) and all-days map (right) */}
++        {plan?.days?.length ? (
++          <div className="mb-6 grid gap-6 lg:grid-cols-[1fr,420px]">
++            <div className="rounded-2xl border bg-white p-4 shadow-sm">
++              <div className="text-sm font-semibold mb-1">Trip overview</div>
++              <p className="text-sm text-slate-700">
++                {topSummary.line1} {topSummary.line2}
++              </p>
++            </div>
++            <div className="rounded-2xl border bg-white p-4 shadow-sm">
++              <div className="text-sm font-semibold mb-2">Itinerary map (all days)</div>
++              <CombinedMap days={plan.days} />
++              <div className="mt-2 text-xs text-slate-500">
++                Markers are labeled as <b>Day.Activity</b> (e.g. <b>2.3</b> is the 3rd stop on Day 2).
++              </div>
++            </div>
++          </div>
++        ) : null}
+@@
+-                  <div className="divide-y">
++                  <div className="divide-y">
+                     {day.activities?.map((a, j) => (
+-                      <div key={j} className="flex items-start gap-4 px-4 py-4">
++                      <div key={j} className="flex items-start gap-4 px-4 py-4">
++                        {/* NEW: thumbnail (static map) if coords available */}
++                        {staticThumb(a) ? (
++                          <img
++                            src={staticThumb(a)!}
++                            alt=""
++                            className="hidden sm:block h-[84px] w-[132px] rounded-lg border object-cover"
++                          />
++                        ) : null}
+                         <div className="w-16 shrink-0">
+                           <div className="flex items-center gap-1 text-xs text-slate-500">
+                             <Clock className="h-3.5 w-3.5" />
+                             <span>{a.time || '--:--'}</span>
+                           </div>
+                         </div>
+                         <div className="min-w-0 flex-1">
+                           <div className="text-sm font-medium text-slate-900">{a.title}</div>
+                           {a.details ? (
+                             <div className="mt-1 text-sm text-slate-600">{a.details}</div>
+                           ) : null}
+                           {a.tags && a.tags.length ? (
+                             <div className="mt-2 flex flex-wrap gap-2">
+                               {a.tags.map((t, k) => (
+                                 <span
+                                   key={k}
+                                   className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs text-slate-700"
+                                 >
+                                   {t}
+                                 </span>
+                               ))}
+                             </div>
+                           ) : null}
+                         </div>
+                         <div className="flex shrink-0 flex-col items-end gap-2">
+                           {a.mapUrl ? (
+                             <a
+                               href={a.mapUrl}
+                               target="_blank"
+                               rel="noreferrer"
+                               className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium text-slate-800 hover:bg-slate-50"
+                             >
+                               <ExternalLink className="h-3.5 w-3.5" />
+-                              Map
++                              Photos / Map
+                             </a>
+                           ) : null}
+                           <button
+                             onClick={onRegenerate}
+                             className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-xs font-medium text-slate-800 hover:bg-slate-50"
+                           >
+                             <RefreshCw className="h-3.5 w-3.5" />
+                             Swap
+                           </button>
+                         </div>
+                       </div>
+                     ))}
+                   </div>
