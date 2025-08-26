@@ -1,575 +1,397 @@
 'use client'
 
-import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { useRouter } from 'next/navigation'
-
-// Add global type for google on window
-declare global {
-  interface Window {
-    google?: any
-  }
-}
-import { motion, AnimatePresence } from 'framer-motion'
+import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import {
-  Sparkles, SlidersHorizontal, PiggyBank, Banknote, Wallet, CreditCard, Gem,
-  Utensils, Palette, Moon, Trees, Landmark, Users, Coffee, Wine,
-  ShoppingBag, Building2, Library, Camera, MapPin,
-} from 'lucide-react'
+import { Plane, MapPin, CalendarDays, Sparkles, Landmark, Utensils, Wine, SlidersHorizontal, Footprints, Download, Coffee, Music, Palette, Leaf, Sun, Moon, Clock } from 'lucide-react'
 
-const HERO_IMAGES = [
-  'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?q=60&w=2000&auto=format&fit=crop',
-  'https://images.unsplash.com/photo-1500530855697-b586d89ba3ee?q=60&w=2000&auto=format&fit=crop',
-  'https://images.unsplash.com/photo-1545569341-9eb8b30979d0?q=60&w=2000&auto=format&fit=crop',
-  'https://images.unsplash.com/photo-1528909514045-2fa4ac7a08ba?q=60&w=2000&auto=format&fit=crop',
-]
-
-type BudgetLevel = 1 | 2 | 3 | 4 | 5
-type BudgetOption = { level: BudgetLevel; label: string; icon: ReactNode }
-const BUDGETS: BudgetOption[] = [
-  { level: 1, label: 'Shoestring', icon: <PiggyBank className="h-5 w-5" /> },
-  { level: 2, label: 'Value',      icon: <Banknote className="h-5 w-5" /> },
-  { level: 3, label: 'Comfort',    icon: <Wallet className="h-5 w-5" /> },
-  { level: 4, label: 'Premium',    icon: <CreditCard className="h-5 w-5" /> },
-  { level: 5, label: 'Luxury',     icon: <Gem className="h-5 w-5" /> },
-]
-
-type InterestKey =
-  | 'food' | 'art' | 'nightlife' | 'outdoors' | 'landmarks' | 'family'
-  | 'coffee' | 'wine' | 'shopping' | 'architecture' | 'history' | 'photography'
-
-type InterestOption = { key: InterestKey; label: string; icon: ReactNode }
-const INTERESTS: InterestOption[] = [
-  { key: 'food',         label: 'Food',         icon: <Utensils className="h-6 w-6" /> },
-  { key: 'art',          label: 'Art',          icon: <Palette className="h-6 w-6" /> },
-  { key: 'nightlife',    label: 'Nightlife',    icon: <Moon className="h-6 w-6" /> },
-  { key: 'outdoors',     label: 'Outdoors',     icon: <Trees className="h-6 w-6" /> },
-  { key: 'landmarks',    label: 'Landmarks',    icon: <Landmark className="h-6 w-6" /> },
-  { key: 'family',       label: 'Family',       icon: <Users className="h-6 w-6" /> },
-  { key: 'coffee',       label: 'Coffee',       icon: <Coffee className="h-6 w-6" /> },
-  { key: 'wine',         label: 'Wine',         icon: <Wine className="h-6 w-6" /> },
-  { key: 'shopping',     label: 'Shopping',     icon: <ShoppingBag className="h-6 w-6" /> },
-  { key: 'architecture', label: 'Architecture', icon: <Building2 className="h-6 w-6" /> },
-  { key: 'history',      label: 'History',      icon: <Library className="h-6 w-6" /> },
-  { key: 'photography',  label: 'Photography',  icon: <Camera className="h-6 w-6" /> },
-]
-
-type HoursPref = 'early' | 'balanced' | 'late'
-type PacePref = 'chill' | 'balanced' | 'packed'
-
-type PlacePick = {
-  name: string
-  address: string
-  lat: number
-  lng: number
-}
-
-function PlacesAutocomplete({
-  value,
-  onPick,
-  placeholder = 'e.g., Le Marais or Hotel Grand Amour',
-}: {
-  value?: string
-  onPick: (p: PlacePick) => void
-  placeholder?: string
-}) {
-  const inputRef = useRef<HTMLInputElement>(null)
-
-  useEffect(() => {
-    // wait for google script
-    if (!window.google?.maps?.places || !inputRef.current) return
-    const ac = new window.google.maps.places.Autocomplete(inputRef.current!, {
-      fields: ['name', 'formatted_address', 'geometry'],
-      types: ['establishment'],
-    })
-    ac.addListener('place_changed', () => {
-      const place = ac.getPlace()
-      const loc = place.geometry?.location
-      if (!loc) return
-      onPick({
-        name: place.name || place.formatted_address || 'Home base',
-        address: place.formatted_address || '',
-        lat: loc.lat(),
-        lng: loc.lng(),
-      })
-      if (inputRef.current) inputRef.current.value = place.name || place.formatted_address || ''
-    })
-    return () => { /* no cleanup needed */ }
-  }, [onPick])
-
-  return (
-    <input
-      ref={inputRef}
-      defaultValue={value}
-      className="w-full rounded-lg border bg-white px-3 py-2.5 text-sm outline-none focus:ring-2 focus:ring-sky-200 text-slate-900 placeholder:text-slate-400"
-      placeholder={placeholder}
-    />
+// Landing page with original-style header: full-bleed slideshow,
+// central big freeform input, preferences toggle, and sections below.
+export default function Page() {
+  const images = useMemo(
+    () => [
+      'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?q=80&amp;auto=format&amp;fit=crop&amp;w=2000&amp;h=1200', // Paris
+      'https://images.unsplash.com/photo-1467269204594-9661b134dd2b?q=80&amp;auto=format&amp;fit=crop&amp;w=2000&amp;h=1200', // London
+      'https://images.unsplash.com/photo-1464790719320-516ecd75af6c?q=80&amp;auto=format&amp;fit=crop&amp;w=2000&amp;h=1200', // Barcelona
+      'https://images.unsplash.com/photo-1528909514045-2fa4ac7a08ba?q=80&amp;auto=format&amp;fit=crop&amp;w=2000&amp;h=1200', // Rome
+    ],
+    []
   )
-}
 
-export default function HomePage() {
-  const [homeBaseName, setHomeBaseName] = useState('')
-  const [homeCoords, setHomeCoords] = useState<{lat:number; lng:number} | null>(null)
+  const [frame, setFrame] = useState(0)
+  useEffect(() => {
+    const id = setInterval(() => setFrame((f) => (f + 1) % images.length), 5000)
+    return () => clearInterval(id)
+  }, [images.length])
+
+  // --- Freeform prompt (single big field)
+  const [prompt, setPrompt] = useState(
+    '5‑day trip to Paris exploring nightlife, local restaurants, and art events'
+  )
+  const [showPrefs, setShowPrefs] = useState(false)
+  const [budget, setBudget] = useState<'low' | 'mid' | 'high'>('mid')
+  const [pace, setPace] = useState<'relaxed' | 'balanced' | 'packed'>('balanced')
+  const [hours, setHours] = useState<'short' | 'standard' | 'long'>('standard')
+
+  const [days, setDays] = useState(5)
+  const [wake, setWake] = useState<'early' | 'normal' | 'late'>('normal')
+
+  const categories = [
+    { key: 'cafes', label: 'Cafés', Icon: Coffee },
+    { key: 'bars', label: 'Bars & wine', Icon: Wine },
+    { key: 'restaurants', label: 'Restaurants', Icon: Utensils },
+    { key: 'museums', label: 'Museums', Icon: Landmark },
+    { key: 'art', label: 'Art & design', Icon: Palette },
+    { key: 'music', label: 'Live music', Icon: Music },
+    { key: 'parks', label: 'Parks', Icon: Leaf },
+  ] as const
+  const [selectedCats, setSelectedCats] = useState<Record<string, boolean>>({
+    cafes: true, bars: true, restaurants: true, museums: true, art: false, music: false, parks: true
+  })
+
+  // Very small heuristic to extract destination from prompt; falls back to Paris.
+  function extractDestination(text: string): string {
+    // look for "... to CITY ..." (keeps letters, spaces and dashes)
+    const m = text.match(/to\s+([A-Za-zÀ-ÿ\s-]+)/i)
+    if (m && m[1]) {
+      return m[1].trim().split(/[\.,;!]/)[0].trim()
+    }
+    // otherwise try first capitalized word
+    const m2 = text.match(/\b([A-Z][A-Za-zÀ-ÿ-]+)\b/)
+    return (m2 && m2[1]) ? m2[1] : 'Paris'
+  }
+
+  const destination = useMemo(() => extractDestination(prompt), [prompt])
+
+  const planHref = useMemo(() => {
+    const params = new URLSearchParams()
+    params.set('d', destination)
+    params.set('budget', budget)
+    params.set('pace', pace)
+    params.set('hours', hours)
+    params.set('days', String(days))
+    params.set('wake', wake)
+    const interests = Object.entries(selectedCats).filter(([_, v]) => v).map(([k]) => k).join(',')
+    if (interests) params.set('interests', interests)
+    params.set('autostart', '1')
+    // carry the raw prompt as a hint (ignored by planner if unused)
+    params.set('q', prompt)
+    return `/plan?${params.toString()}`
+  }, [destination, budget, pace, hours, prompt, days, wake, selectedCats])
 
   return (
-    <main className="min-h-screen bg-white text-slate-900">
-      <Hero
-        homeBaseName={homeBaseName}
-        setHomeBaseName={setHomeBaseName}
-        homeCoords={homeCoords}
-        setHomeCoords={setHomeCoords}
-      />
-      <Inspiration />
-      <HowItWorks />
-      <FinalCTA />
+    <main className="min-h-screen w-full bg-slate-50">
+      {/* Header / Hero */}
+      <section className="relative h-[78vh] min-h-[560px] w-full overflow-hidden">
+        {/* Cross‑fade slideshow */}
+        {images.map((src, i) => (
+          <div
+            key={i}
+            className="absolute inset-0 bg-center bg-cover transition-opacity duration-[1400ms]"
+            style={{ backgroundImage: `url(${src})`, opacity: frame === i ? 1 : 0 }}
+            aria-hidden
+          />
+        ))}
+        {/* Gradient scrim for legibility */}
+        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
+
+        {/* Centered content */}
+        <div className="relative z-10 mx-auto flex h-full max-w-5xl flex-col items-center justify-center px-4 text-center text-white">
+          <h1 className="text-4xl font-semibold leading-tight tracking-tight drop-shadow md:text-6xl">
+            Plan beautiful city breaks—smart, fast, personal
+          </h1>
+          <p className="mt-4 max-w-2xl text-sky-100">
+            Tell us where you want to go and what you want to do. We’ll build a balanced, walkable itinerary with food, culture and local gems.
+          </p>
+
+          {/* Big freeform input + CTA */}
+          <div className="mt-8 w-full max-w-4xl rounded-2xl bg-white/80 p-6 shadow-xl ring-1 ring-white/40 backdrop-blur-md">
+            <div className="flex flex-col items-stretch gap-3 sm:flex-row">
+              <input
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                placeholder="Describe where you want to go and what you want to do"
+                className="h-16 flex-1 rounded-xl border border-slate-200/60 px-5 text-xl text-slate-900 placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-sky-500/70"
+              />
+              <Link
+                href={planHref}
+                className="inline-flex h-16 items-center justify-center rounded-xl bg-gradient-to-r from-sky-600 to-cyan-500 px-7 text-base font-semibold text-white shadow-md hover:from-sky-700 hover:to-cyan-600"
+              >
+                Plan my trip
+              </Link>
+            </div>
+
+            {/* Preferences toggle */}
+            <div className="mt-3 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() => setShowPrefs((v) => !v)}
+                className="text-left text-sm font-medium text-slate-800 hover:text-sky-700 underline-offset-2 hover:underline"
+              >
+                {showPrefs ? 'Hide preferences' : 'Prefer to insert your preferences?'}
+              </button>
+              <div className="text-xs text-slate-500">Optional</div>
+            </div>
+
+            {showPrefs && (
+              <div className="mt-4 grid grid-cols-1 gap-4">
+                {/* Interest chips */}
+                <div className="text-left">
+                  <div className="mb-2 text-sm font-medium text-slate-700">Interests</div>
+                  <div className="flex flex-wrap gap-2">
+                    {categories.map(({ key, label, Icon }) => {
+                      const active = !!selectedCats[key]
+                      return (
+                        <button
+                          key={key}
+                          type="button"
+                          onClick={() => setSelectedCats(s => ({ ...s, [key]: !s[key] }))}
+                          className={`inline-flex items-center gap-2 rounded-full border px-3.5 py-2 text-sm ${active ? 'bg-sky-600 text-white border-sky-600 shadow-sm' : 'bg-white text-slate-700 hover:bg-slate-50 border-slate-200'}`}
+                          aria-pressed={active}
+                        >
+                          <Icon className="h-4 w-4" />
+                          {label}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* Sliders & selects */}
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+                  <label className="block text-left text-sm">
+                    <div className="mb-1 text-slate-700">Budget</div>
+                    <select
+                      value={budget}
+                      onChange={(e) => setBudget(e.target.value as any)}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    >
+                      <option value="low">Low</option>
+                      <option value="mid">Mid</option>
+                      <option value="high">High</option>
+                    </select>
+                  </label>
+
+                  <label className="block text-left text-sm">
+                    <div className="mb-1 text-slate-700">Pace</div>
+                    <select
+                      value={pace}
+                      onChange={(e) => setPace(e.target.value as any)}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    >
+                      <option value="relaxed">Relaxed</option>
+                      <option value="balanced">Balanced</option>
+                      <option value="packed">Packed</option>
+                    </select>
+                  </label>
+
+                  <label className="block text-left text-sm">
+                    <div className="mb-1 text-slate-700">Day length</div>
+                    <select
+                      value={hours}
+                      onChange={(e) => setHours(e.target.value as any)}
+                      className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-slate-900 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                    >
+                      <option value="short">Short</option>
+                      <option value="standard">Standard</option>
+                      <option value="long">Long</option>
+                    </select>
+                  </label>
+                </div>
+
+                {/* Early / late & days */}
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 sm:items-end">
+                  <div className="text-left">
+                    <div className="mb-1 text-sm font-medium text-slate-700">Wake preference</div>
+                    <div className="inline-flex rounded-xl border bg-white p-1">
+                      <button
+                        type="button"
+                        onClick={() => setWake('early')}
+                        className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${wake === 'early' ? 'bg-sky-600 text-white' : 'text-slate-700 hover:bg-slate-50'}`}
+                      >
+                        <Sun className="h-4 w-4" /> Early bird
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setWake('normal')}
+                        className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${wake === 'normal' ? 'bg-sky-600 text-white' : 'text-slate-700 hover:bg-slate-50'}`}
+                      >
+                        <Clock className="h-4 w-4" /> Standard
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setWake('late')}
+                        className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${wake === 'late' ? 'bg-sky-600 text-white' : 'text-slate-700 hover:bg-slate-50'}`}
+                      >
+                        <Moon className="h-4 w-4" /> Late riser
+                      </button>
+                    </div>
+                  </div>
+
+                  <label className="block text-left sm:col-span-2">
+                    <div className="mb-1 text-sm font-medium text-slate-700">Number of days: <span className="font-semibold">{days}</span></div>
+                    <input
+                      type="range"
+                      min={1}
+                      max={14}
+                      value={days}
+                      onChange={(e) => setDays(Number(e.target.value))}
+                      className="w-full"
+                    />
+                  </label>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {/* Sections below the fold, as before */}
+      <section className="mx-auto max-w-6xl px-4 py-16">
+        <Inspiration />
+      </section>
+
+      <section className="mx-auto max-w-6xl px-4 pb-16">
+        <HowItWorks />
+      </section>
+
+      <section className="mx-auto max-w-6xl px-4 pb-16">
+        <ExploreCities />
+      </section>
+
+      <section className="mx-auto max-w-6xl px-4 pb-16">
+        <FinalCTA />
+      </section>
+
       <Footer />
     </main>
   )
 }
 
-function Hero({
-  homeBaseName,
-  setHomeBaseName,
-  homeCoords,
-  setHomeCoords,
-}: {
-  homeBaseName: string
-  setHomeBaseName: (name: string) => void
-  homeCoords: { lat: number; lng: number } | null
-  setHomeCoords: (coords: { lat: number; lng: number } | null) => void
-}) {
-  const [index, setIndex] = useState(0)
-  const [showPrefs, setShowPrefs] = useState(false)
-  const router = useRouter()
-
-  const [prompt, setPrompt] = useState('5-day weekend in Paris with great food and clubbing')
-  const [destination, setDestination] = useState('Paris')
-  const [numDays, setNumDays] = useState(5)
-
-  const [hoursPref, setHoursPref] = useState<HoursPref>('balanced')
-  const [pace, setPace] = useState<PacePref>('balanced')
-
-  const [budget, setBudget] = useState<BudgetLevel>(3)
-  const [selected, setSelected] = useState<Set<InterestKey>>(new Set(['food', 'nightlife', 'landmarks']))
-
-  useEffect(() => {
-    const id = setInterval(() => setIndex((i) => (i + 1) % HERO_IMAGES.length), 5000)
-    return () => clearInterval(id)
-  }, [])
-
-  function goToPlan(params: URLSearchParams) {
-    router.push(`/plan?${params.toString()}`)
-  }
-  function datesFromNumDays(days: number) {
-    const start = new Date()
-    const end = new Date(start.getTime() + Math.max(0, days - 1) * 86400000)
-    const s = start.toISOString().slice(0, 10)
-    const e = end.toISOString().slice(0, 10)
-    return `${s} to ${e}`
-  }
-  function startWithChat() {
-    const p = new URLSearchParams()
-    p.set('q', prompt)
-    p.set('autostart', '1')
-    goToPlan(p)
-  }
-  function startWithPrefs() {
-    const p = new URLSearchParams()
-    if (destination) p.set('d', destination)
-    p.set('dates', datesFromNumDays(numDays))
-    if (homeBaseName) p.set('home_name', homeBaseName)
-    if (homeCoords) {
-      p.set('home_lat', String(homeCoords.lat))
-      p.set('home_lng', String(homeCoords.lng))
-    }
-    if (hoursPref) p.set('hours', hoursPref)
-    if (pace) p.set('pace', pace)
-    if (selected.size) p.set('i', Array.from(selected).join(','))
-    p.set('budget', String(budget))
-    p.set('autostart', '1')
-    goToPlan(p)
-  }
-
-  const NEIGHBORHOOD_SUGGESTIONS = [
-    'Le Marais', 'Canal St-Martin', 'Latin Quarter', 'Bastille', 'Montmartre'
-  ]
-
-  return (
-    <section className="relative min-h-[100svh] w-full overflow-hidden">
-      {/* Background image */}
-      <div className="pointer-events-none absolute inset-0 z-0">
-        <AnimatePresence initial={false}>
-          <motion.div
-            key={HERO_IMAGES[index]}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.9 }}
-            className="absolute inset-0 bg-cover bg-center"
-            style={{ backgroundImage: `url(${HERO_IMAGES[index]})` }}
-          />
-        </AnimatePresence>
-      </div>
-
-      {/* Gradient overlay */}
-      <div className="absolute inset-0 z-10 bg-gradient-to-t from-black/60 via-black/25 to-transparent" />
-
-      {/* Foreground content */}
-      <div className="relative z-20 mx-auto flex max-w-5xl flex-col items-center px-6 pb-12 pt-16 text-center md:pt-24">
-        <div className="inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-white backdrop-blur">
-          <Sparkles className="h-4 w-4" />
-          <span className="text-xs font-medium tracking-wide">Havre · AI Travel Concierge</span>
-        </div>
-
-        <h1 className="mt-4 max-w-3xl text-4xl font-bold leading-tight text-white md:text-6xl">
-          Plan unforgettable trips in minutes.
-        </h1>
-        <p className="mt-3 max-w-2xl text-white/90 md:text-lg">
-          Describe your trip or use a few choices—Havre crafts a day-by-day plan with maps, dining, and hidden gems.
-        </p>
-
-        {/* Chat input */}
-        <div className="mt-6 w-full max-w-3xl rounded-2xl bg-white/85 p-3 backdrop-blur">
-          <textarea
-            className="h-28 w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-3 text-base outline-none placeholder:text-slate-400 focus:ring-2 focus:ring-sky-200"
-            placeholder='e.g., "5-day weekend in Paris with great food and one club night"'
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-          />
-          <div className="mt-3 flex flex-col items-center justify-center gap-3 sm:flex-row">
-            <button
-              onClick={startWithChat}
-              className="w-full rounded-xl bg-sky-600 px-6 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-700 sm:w-auto"
-            >
-              Plan my trip
-            </button>
-            <button
-              onClick={() => setShowPrefs((v) => !v)}
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white/90 px-5 py-3 text-sm font-semibold text-slate-800 shadow-sm transition hover:bg-white"
-            >
-              <SlidersHorizontal className="h-4 w-4" />
-              {showPrefs ? 'Hide sliders & choices' : 'Prefer sliders & choices?'}
-            </button>
-          </div>
-        </div>
-
-        {/* Preferences panel */}
-        <AnimatePresence initial={false}>
-          {showPrefs && (
-            <motion.div
-              initial={{ opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -6 }}
-              className="mt-5 w-full max-w-4xl rounded-2xl border border-white/20 bg-white/90 p-5 text-left backdrop-blur"
-            >
-              <div className="grid gap-4 md:grid-cols-[1.2fr,0.8fr]">
-                <div>
-                  <label className="text-xs font-medium text-slate-600">Destination</label>
-                  <div className="relative mt-2">
-                    <MapPin className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                    <input
-                      className="w-full rounded-lg border bg-white px-9 py-2.5 text-sm outline-none focus:ring-2 focus:ring-sky-200"
-                      value={destination}
-                      onChange={(e) => setDestination(e.target.value)}
-                      placeholder="City or region"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-slate-600">Number of days</label>
-                  <div className="mt-2 flex items-center gap-3">
-                    <input
-                      type="range"
-                      min={1}
-                      max={14}
-                      value={numDays}
-                      onChange={(e) => setNumDays(Number(e.target.value))}
-                      className="w-full"
-                    />
-                    <div className="w-14 rounded-lg border bg-white px-3 py-2 text-center text-sm">{numDays}</div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Home base */}
-              <div className="mt-5">
-                <label className="text-xs font-medium text-slate-600">
-                  Where are you staying? (exact hotel / place)
-                </label>
-                <div className="mt-2">
-                  <PlacesAutocomplete
-                    value={homeBaseName}
-                    onPick={(p) => {
-                      setHomeBaseName(p.name)
-                      setHomeCoords({ lat: p.lat, lng: p.lng })
-                    }}
-                    placeholder="Type a hotel or exact place…"
-                  />
-                </div>
-              </div>
-
-              {/* Hours preference */}
-              <div className="mt-5">
-                <label className="text-xs font-medium text-slate-600">When do you like to start your day?</label>
-                <div className="mt-2 grid grid-cols-3 gap-2">
-                  {(['early','balanced','late'] as HoursPref[]).map(h => (
-                    <button
-                      key={h}
-                      onClick={() => setHoursPref(h)}
-                      className={`rounded-xl border px-3 py-2 text-sm ${
-                        hoursPref === h ? 'border-sky-600 bg-sky-50 text-sky-700' : 'border-slate-200 bg-white hover:bg-slate-50'
-                      }`}
-                      type="button"
-                    >
-                      {h === 'early' ? 'Early bird' : h === 'late' ? 'Late riser' : 'Balanced'}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Pace */}
-              <div className="mt-5">
-                <label className="text-xs font-medium text-slate-600">How packed should we make it?</label>
-                <div className="mt-2 grid grid-cols-3 gap-2">
-                  {(['chill','balanced','packed'] as PacePref[]).map(p => (
-                    <button
-                      key={p}
-                      onClick={() => setPace(p)}
-                      className={`rounded-xl border px-3 py-2 text-sm ${
-                        pace === p ? 'border-sky-600 bg-sky-50 text-sky-700' : 'border-slate-200 bg-white hover:bg-slate-50'
-                      }`}
-                      type="button"
-                    >
-                      {p === 'chill' ? 'Chill' : p === 'packed' ? 'Packed' : 'Balanced'}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Budget */}
-              <div className="mt-5">
-                <label className="text-xs font-medium text-slate-600">Budget</label>
-                <div className="mt-3 grid grid-cols-5 gap-2">
-                  {BUDGETS.map(b => (
-                    <button
-                      key={b.level}
-                      onClick={() => setBudget(b.level)}
-                      className={`flex flex-col items-center rounded-xl border px-3 py-3 text-xs ${
-                        budget === b.level
-                          ? 'border-sky-600 bg-sky-50 text-sky-700'
-                          : 'border-slate-200 bg-white hover:bg-slate-50'
-                      }`}
-                      type="button"
-                    >
-                      <div className="text-base">{b.label}</div>
-                      <div className="mt-2">{b.icon}</div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Interests */}
-              <div className="mt-5">
-                <div className="text-xs font-medium text-slate-600">Interests</div>
-                <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-6">
-                  {INTERESTS.map(it => {
-                    const active = selected.has(it.key)
-                    return (
-                      <button
-                        key={it.key}
-                        onClick={() => {
-                          setSelected(prev => {
-                            const next = new Set(prev)
-                            next.has(it.key) ? next.delete(it.key) : next.add(it.key)
-                            return next
-                          })
-                        }}
-                        className={`flex flex-col items-center rounded-xl border px-3 py-3 ${
-                          active ? 'border-sky-600 bg-sky-50 text-sky-700' : 'border-slate-200 bg-white hover:bg-slate-50'
-                        }`}
-                        aria-pressed={active}
-                        type="button"
-                      >
-                        <div className="text-xs font-medium">{it.label}</div>
-                        <div className="mt-1">{it.icon}</div>
-                      </button>
-                    )
-                  })}
-                </div>
-                <p className="mt-2 text-xs text-slate-500">Tip: pick 3–6 interests for best results.</p>
-              </div>
-
-              <div className="mt-5 flex flex-wrap items-center gap-3">
-                <button
-                  onClick={startWithPrefs}
-                  className="rounded-xl bg-sky-600 px-5 py-3 text-sm font-semibold text-white shadow-sm transition hover:bg-sky-700"
-                >
-                  Generate with choices
-                </button>
-                <Link href="/plan" className="text-sm text-slate-700 underline">
-                  Open planner
-                </Link>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
-    </section>
-  )
-}
-
-/* --- Get inspired, How it works, CTA, Footer --- */
-
-function formatReviews(n: number) {
-  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`
-  return String(n)
-}
+// --- Below-the-fold components (same copy/layout as earlier)
 
 function Inspiration() {
-  const items = [
-    {
-      title: 'Food lover',
-      img: 'https://images.unsplash.com/photo-1541542684-4a593cdbed6d?q=60&w=1200&auto=format&fit=crop',
-      i: 'food,natural wine,bistros',
-      neighborhood: 'Canal St-Martin',
-      rating: 4.7,
-      reviews: 1200,
-    },
-    {
-      title: 'Hidden gems & walks',
-      img: 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?q=60&w=1200&auto=format&fit=crop',
-      i: 'hidden gems,neighborhood walks',
-      neighborhood: 'Buttes-Chaumont',
-      rating: 4.6,
-      reviews: 860,
-    },
-    {
-      title: 'Nightlife & cocktails',
-      img: 'https://images.unsplash.com/photo-1514525253161-7a46d19cd819?q=60&w=1200&auto=format&fit=crop',
-      i: 'nightlife,cocktails,clubs',
-      neighborhood: 'Oberkampf',
-      rating: 4.5,
-      reviews: 1420,
-    },
-    {
-      title: 'Art & museums',
-      img: 'https://images.unsplash.com/photo-1549880338-65ddcdfd017b?q=60&w=1200&auto=format&fit=crop',
-      i: 'art,museums,architecture',
-      neighborhood: 'Saint-Germain',
-      rating: 4.8,
-      reviews: 2100,
-    },
-  ] as const
-
+  const cards = [
+    { icon: <Utensils className="h-5 w-5" />, title: 'Restaurants you’ll love', text: 'Neo‑bistros, natural wine spots, coffee bars, pastry stops.' },
+    { icon: <Landmark className="h-5 w-5" />, title: 'Culture & landmarks', text: 'Museums, galleries, gardens and architectural highlights.' },
+    { icon: <Wine className="h-5 w-5" />, title: 'Nightlife or low‑key', text: 'From casual apéro to late‑night bars—your call.' },
+    { icon: <Sparkles className="h-5 w-5" />, title: 'Hidden gems', text: 'Local neighborhoods and lesser‑known favorites.' },
+  ]
   return (
-    <section className="mx-auto max-w-6xl px-6 py-14">
-      <div className="mb-6 flex items-center justify-between">
-        <h2 className="text-xl font-semibold">Get inspired</h2>
-        <Link href="/explore" className="text-sm text-sky-700 underline">See more</Link>
-      </div>
+    <div>
+      <h2 className="text-3xl font-semibold text-slate-900">What you get</h2>
+      <p className="mt-2 max-w-2xl text-slate-600">
+        A clean plan for each day—times, descriptions, tags, and a live map with walking lines between stops.
+      </p>
 
-      <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
-        {items.map((x, idx) => {
-          const qs = new URLSearchParams({ i: x.i, autostart: '1' }).toString()
-          return (
-            <Link
-              key={idx}
-              href={`/plan?${qs}`}
-              className="group overflow-hidden rounded-2xl border bg-white shadow-sm"
-            >
-              <div className="p-4">
-                <div className="flex items-center justify-between">
-                  <div className="text-base font-semibold">{x.title}</div>
-                  <div className="rounded-full border border-slate-200 bg-white px-2 py-0.5 text-xs text-slate-700">
-                    ★ {x.rating.toFixed(1)} · {formatReviews(x.reviews)}
-                  </div>
-                </div>
-                <div className="mt-2 inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-xs text-slate-700">
-                  <MapPin className="h-3.5 w-3.5" />
-                  {x.neighborhood}
-                </div>
-                <div className="mt-2 text-sm text-slate-600">{x.i.split(',').join(', ')}</div>
-              </div>
-              <div
-                className="h-44 w-full bg-cover bg-center transition group-hover:scale-105"
-                style={{ backgroundImage: `url(${x.img})` }}
-              />
-            </Link>
-          )
-        })}
+      <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {cards.map((c, i) => (
+          <div key={i} className="rounded-2xl border bg-white p-5 shadow-md hover:shadow-lg transition-shadow">
+            <div className="flex items-center gap-2 text-slate-900">
+              <span className="rounded-xl bg-sky-50 p-3 text-sky-700 ring-1 ring-sky-200">{c.icon}</span>
+              <div className="font-medium">{c.title}</div>
+            </div>
+            <div className="mt-2 text-sm text-slate-600">{c.text}</div>
+          </div>
+        ))}
       </div>
-    </section>
+    </div>
   )
 }
 
 function HowItWorks() {
   const steps = [
+    { icon: <MapPin className="h-5 w-5" />, title: 'Tell us your base', text: 'Pick your city and roughly where you’re staying.' },
+    { icon: <SlidersHorizontal className="h-5 w-5" />, title: 'Set your style', text: 'Budget, pace, and interests (food, art, nightlife…).' },
+    { icon: <Footprints className="h-5 w-5" />, title: 'Get a smart route', text: 'Balanced days with walkable sequences and backup options.' },
+    { icon: <Download className="h-5 w-5" />, title: 'Export & share', text: 'Send to friends, save offline, or open in Google Maps.' },
+  ]
+  return (
+    <div id="how">
+      <h2 className="text-3xl font-semibold text-slate-900">How it works</h2>
+      <div className="mt-6 grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+        {steps.map((s, i) => (
+          <div key={i} className="rounded-2xl border bg-white p-5 shadow-md">
+            <div className="flex items-center gap-2">
+              <span className="rounded-md bg-slate-100 p-2 text-slate-700">{s.icon}</span>
+              <div className="font-medium text-slate-900">{s.title}</div>
+            </div>
+            <div className="mt-2 text-sm text-slate-600">{s.text}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function ExploreCities() {
+  const cities = [
     {
-      title: 'Share your vibe',
-      desc: 'Start with a sentence or choose a few sliders. We keep it simple.',
-      img: 'https://images.unsplash.com/photo-1484704849700-f032a568e944?q=60&w=1200&auto=format&fit=crop',
+      name: 'Munich',
+      img: 'https://images.unsplash.com/photo-1551882547-ff40c63fe5fa?q=80&auto=format&fit=crop&w=1400&h=900',
+      href: '/plan?d=Munich&days=3&pace=balanced&interests=beer,restaurants,parks&autostart=1&q=Weekend in Munich with beer gardens and museums'
     },
     {
-      title: 'Smart curation',
-      desc: 'Havre blends a curated database with AI to match your taste and pace.',
-      img: 'https://images.unsplash.com/photo-1511512578047-dfb367046420?q=60&w=1200&auto=format&fit=crop',
+      name: 'Paris',
+      img: 'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?q=80&auto=format&fit=crop&w=1400&h=900',
+      href: '/plan?d=Paris&days=5&pace=balanced&interests=cafes,restaurants,art,museums&autostart=1&q=5-day Paris food and art itinerary'
     },
     {
-      title: 'A day-by-day plan',
-      desc: 'Clean schedule with maps, restaurants, bars, and tips you can refine.',
-      img: 'https://images.unsplash.com/photo-1518684079-3c830dcef090?q=60&w=1200&auto=format&fit=crop',
+      name: 'Lebanon',
+      img: 'https://images.unsplash.com/photo-1602934445530-55f577c5e4a9?q=80&auto=format&fit=crop&w=1400&h=900',
+      href: '/plan?d=Beirut&days=4&pace=relaxed&interests=restaurants,art,parks&autostart=1&q=Relaxed Beirut with coastal food and galleries'
     },
   ]
-
   return (
-    <section className="border-y bg-white">
-      <div className="mx-auto max-w-6xl px-6 py-14">
-        <h2 className="mb-8 text-center text-2xl font-semibold">How it works</h2>
-        <div className="mx-auto max-w-3xl space-y-6">
-          {steps.map((s, i) => (
-            <div key={i} className="overflow-hidden rounded-2xl border bg-slate-50/70 shadow-sm">
-              <div className="h-40 w-full bg-cover bg-center" style={{ backgroundImage: `url(${s.img})` }} />
-              <div className="p-5">
-                <div className="text-base font-semibold">{i + 1}. {s.title}</div>
-                <div className="mt-1 text-sm text-slate-600">{s.desc}</div>
-              </div>
+    <div>
+      <h2 className="text-3xl font-semibold text-slate-900">Inspiration</h2>
+      <p className="mt-2 max-w-2xl text-slate-600">Jump straight into a curated plan.</p>
+      <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {cities.map((c) => (
+          <Link key={c.name} href={c.href} className="group rounded-2xl border bg-white shadow-md hover:shadow-lg overflow-hidden">
+            <div className="relative h-44 w-full overflow-hidden">
+              <img src={c.img} alt={c.name} className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
+              <div className="absolute bottom-3 left-3 text-white text-lg font-semibold drop-shadow">{c.name}</div>
             </div>
-          ))}
-        </div>
+            <div className="p-4 text-sm text-slate-600">Open a prefilled itinerary for {c.name}.</div>
+          </Link>
+        ))}
       </div>
-    </section>
+    </div>
   )
 }
 
 function FinalCTA() {
   return (
-    <section className="mx-auto max-w-6xl px-6 py-14">
-      <div className="rounded-3xl border bg-gradient-to-br from-sky-600 to-sky-700 p-8 text-white">
-        <h3 className="text-2xl font-semibold">Ready to plan your next trip?</h3>
-        <p className="mt-2 text-sky-50">Open the planner and get a draft itinerary in seconds.</p>
-        <div className="mt-5 flex gap-3">
-          <Link href="/plan" className="rounded-xl bg-white px-5 py-3 text-sm font-semibold text-sky-700 shadow-sm hover:brightness-95">
-            Open planner
-          </Link>
-          <Link href="/explore" className="rounded-xl border border-white/70 px-5 py-3 text-sm font-semibold text-white/90 hover:bg-white/10">
-            Explore ideas
-          </Link>
+    <div className="rounded-2xl bg-gradient-to-r from-sky-600 to-sky-500 p-6 text-white shadow-sm">
+      <div className="flex flex-col items-start justify-between gap-4 md:flex-row md:items-center">
+        <div>
+          <div className="text-lg font-semibold">Ready to plan?</div>
+          <div className="mt-1 text-sky-100">Create a tailored itinerary in under a minute.</div>
         </div>
+        <Link
+          href="/plan?d=Paris&amp;autostart=1"
+          className="inline-flex items-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-semibold text-sky-700 hover:bg-slate-50"
+        >
+          <CalendarDays className="h-4 w-4" />
+          Open planner
+        </Link>
       </div>
-    </section>
+    </div>
   )
 }
 
 function Footer() {
   return (
-    <footer className="border-t bg-white">
-      <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-8 text-sm text-slate-500">
-        <p>© {new Date().getFullYear()} Havre</p>
-        <div className="flex gap-4">
-          <Link href="/plan" className="hover:text-slate-700">Plan</Link>
-          <Link href="/features" className="hover:text-slate-700">Features</Link>
-          <Link href="/pricing" className="hover:text-slate-700">Pricing</Link>
-          <Link href="/admin/places/new" className="hover:text-slate-700">Add place</Link>
+    <footer className="mt-16 border-t">
+      <div className="mx-auto max-w-6xl px-4 py-8 text-sm text-slate-600">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>© {new Date().getFullYear()} Havre</div>
+          <nav className="flex items-center gap-4">
+            <Link href="/plan" className="hover:underline">Plan</Link>
+            <Link href="#how" className="hover:underline">How it works</Link>
+            <Link href="#" className="hover:underline">Pricing</Link>
+          </nav>
         </div>
       </div>
     </footer>
