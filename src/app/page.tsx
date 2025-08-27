@@ -145,11 +145,11 @@ export default function Page() {
                           key={key}
                           type="button"
                           onClick={() => setSelectedCats(s => ({ ...s, [key]: !s[key] }))}
-                          className={`inline-flex items-center gap-2 rounded-full border px-3.5 py-2 text-sm ${active ? 'bg-sky-600 text-white border-sky-600 shadow-sm' : 'bg-white text-slate-700 hover:bg-slate-50 border-slate-200'}`}
+                          className={`inline-flex items-center gap-2 rounded-full border px-3.5 py-2 text-sm font-medium ${active ? 'bg-sky-100 border-sky-600 shadow-sm text-slate-900' : 'bg-white text-slate-900 hover:bg-slate-50 border-slate-200'}`}
                           aria-pressed={active}
                         >
-                          <Icon className="h-4 w-4" />
-                          {label}
+                          <Icon className={`h-4 w-4 ${active ? 'text-sky-600' : 'text-black'}`} />
+                          <span className="text-xs font-medium text-black">{label}</span>
                         </button>
                       )
                     })}
