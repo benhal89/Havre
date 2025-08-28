@@ -1,12 +1,21 @@
-@import "tailwindcss";
+/* === Global styles for Havre ===
+   NOTE: @import must come first in the file. */
 
-/* ---- HAVRE theme tokens (Tailwind v4) ---- */
-@theme {
+/* Fonts */
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=Inter:wght@400;500;700&display=swap');
+
+/* Tailwind (v3 style) */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ---------------- Design tokens ---------------- */
+:root {
   /* Fonts */
-  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
-  --font-serif: 'EB Garamond', ui-serif, serif;
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  --font-serif: 'Playfair Display', ui-serif, Georgia, serif;
 
-  /* Brand colors */
+  /* Brand palette */
   --color-ivory: #F8F6F1;
   --color-midnight: #0D1B2A;
   --color-emerald: #0C7C59;
@@ -14,23 +23,40 @@
   --color-terracotta: #C97B5A;
   --color-gold: #D4AF37;
 
-  /* App surface defaults */
+  /* Surfaces */
   --color-background: var(--color-ivory);
   --color-foreground: var(--color-midnight);
+
+  /* Legacy neutrals (some components reference these) */
+  --color-bg: #f9f7f6;
+  --color-text: #222;
+  --color-accent: #0ea5e9;
+  --color-muted: #bdbdbd;
+  --color-card: #fff;
+  --color-border: #ececec;
 }
 
-/* Optional dark palette tweak (can keep simple for now) */
+/* Optional dark baseline */
 @media (prefers-color-scheme: dark) {
-  @theme {
+  :root {
     --color-background: #0a0a0a;
     --color-foreground: #ededed;
   }
 }
 
-/* Base document styles */
-html, body { max-width: 100%; overflow-x: hidden; }
+/* ---------------- Base styles ---------------- */
+html, body {
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
 body {
   background: var(--color-background);
   color: var(--color-foreground);
   font-family: var(--font-sans);
+}
+
+/* Serif for headings */
+h1, h2, h3, .font-serif {
+  font-family: var(--font-serif);
 }

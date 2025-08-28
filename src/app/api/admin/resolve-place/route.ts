@@ -1,92 +1,187 @@
 // src/app/api/admin/resolve-place/route.ts
 import { NextResponse } from 'next/server'
 
-const BASE = 'https://places.googleapis.com/v1'
-
-async function searchText(query: string, key: string) {
-  const res = await fetch(`${BASE}/places:searchText`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'X-Goog-Api-Key': key,
-      'X-Goog-FieldMask': 'places.id,places.displayName,places.formattedAddress,places.location,places.addressComponents,places.primaryType,places.types,places.rating,places.priceLevel',
-    },
-    body: JSON.stringify({ textQuery: query }),
-  })
-  const j = await res.json()
-  if (!res.ok) throw new Error(j?.error?.message || `Text search failed (${res.status})`)
-  return j?.places?.[0]
+type GDetailsResp = {
+  result?: any
+  status?: string
+  candidates?: { place_id: string }[]
 }
 
-async function getDetails(placeId: string, key: string) {
-  const res = await fetch(`${BASE}/places/${encodeURIComponent(placeId)}?fields=formattedAddress,websiteUri,internationalPhoneNumber,openingHours,editorialSummary,types,primaryType,priceLevel,rating,displayName,addressComponents,location`, {
-    headers: { 'X-Goog-Api-Key': key }
-  })
-  const j = await res.json()
-  if (!res.ok) throw new Error(j?.error?.message || `Details failed (${res.status})`)
-  return j
+const ALLOWED_TYPES = new Set([
+  'restaurant','cafe','bar','bakery','night_club','tourist_attraction','museum','art_gallery','park'
+])
+
+// map some Google types -> your tags
+function tagsFromTypes(types: string[] = []) {
+  const t = new Set<string>()
+  for (const ty of types) {
+    if (ty === 'cafe') t.add('cafes')
+    if (ty === 'restaurant') t.add('restaurants')
+    if (ty === 'bar') t.add('bars')
+    if (ty === 'night_club') t.add('nightlife')
+    if (ty === 'museum') t.add('museums')
+    if (ty === 'art_gallery') t.add('galleries')
+    if (ty === 'park') t.add('parks')
+  }
+  return Array.from(t)
 }
 
-function extractCityCountry(components: any[] | undefined) {
-  let city: string | undefined
-  let country: string | undefined
-  components?.forEach((c) => {
-    if (c.types?.includes('locality') || c.types?.includes('postal_town')) city = c.longText || c.shortText
-    if (c.types?.includes('country')) country = c.longText || c.shortText
-  })
-  return { city, country }
+function cuisinesFromTypes(types: string[] = []) {
+  const known = [
+    'italian','japanese','sushi','ramen','thai','indian','korean','lebanese','greek','seafood','vegan','vegetarian'
+  ]
+  return types.filter(t => known.includes(t))
 }
 
-function toCuisine(types: string[] | undefined) {
-  if (!types) return []
-  const lower = types.map(t => t.toLowerCase())
-  const known = ['french', 'italian', 'japanese', 'chinese', 'thai', 'indian', 'spanish', 'mexican', 'korean', 'brunch', 'seafood', 'steakhouse', 'mediterranean', 'middle_eastern']
-  return known.filter(k => lower.includes(k) || lower.includes(`${k}_restaurant`) || lower.includes(k.replace(' ', '_')))
+function cleanTypes(types: string[] = []) {
+  return types.filter(t => ALLOWED_TYPES.has(t))
 }
 
-export async function POST(req: Request) {
+// try to extract a reasonable text query from a gmaps URL
+function guessQueryFromUrl(u: URL) {
+  const q = u.searchParams.get('q')
+  if (q) return q
+  // /place/<Name>/... or /search/<query>
+  const parts = u.pathname.split('/').filter(Boolean)
+  const iPlace = parts.indexOf('place')
+  if (iPlace >= 0 && parts[iPlace + 1]) return decodeURIComponent(parts[iPlace + 1])
+  const iSearch = parts.indexOf('search')
+  if (iSearch >= 0 && parts[iSearch + 1]) return decodeURIComponent(parts[iSearch + 1])
+  // fallback: whole url text
+  return decodeURIComponent(u.toString())
+}
+
+function addrPart(components: any[], type: string) {
+  const c = components?.find((x: any) => x.types?.includes(type))
+  return c?.long_name || null
+}
+
+export async function GET(req: Request) {
   try {
-    const { url, hint } = await req.json().catch(() => ({}))
-    if (!url || typeof url !== 'string') {
-      return NextResponse.json({ error: 'url is required' }, { status: 400 })
-    }
-    const key = process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY || process.env.GOOGLE_MAPS_KEY
-    if (!key) return NextResponse.json({ error: 'Missing GOOGLE MAPS API key' }, { status: 500 })
+    const { searchParams } = new URL(req.url)
+    const raw = (searchParams.get('url') || '').trim()
+    if (!raw) return NextResponse.json({ error: 'Missing url' }, { status: 400 })
 
-    // Step 1: use the URL (plus an optional hint) as a textQuery
-    const first = await searchText(hint ? `${url} ${hint}` : url, key)
-    if (!first?.id) {
-      return NextResponse.json({ error: 'No place found for the provided link' }, { status: 404 })
+    const apiKey =
+      process.env.GOOGLE_PLACES_API_KEY ||
+      process.env.NEXT_PUBLIC_GOOGLE_PLACES_API_KEY
+    if (!apiKey) {
+      return NextResponse.json({ error: 'Missing Google Places API key' }, { status: 500 })
     }
 
-    // Step 2: load full details
-    const det = await getDetails(first.id, key)
+    // 1) Follow short links to the final URL (maps.app.goo.gl -> long google maps URL)
+    let finalUrl = raw
+    try {
+      const resp = await fetch(raw, { redirect: 'follow' })
+      // even HEAD sometimes is blocked; GET small should be fine
+      finalUrl = resp.url || raw
+    } catch {
+      // ignore; keep raw
+    }
+    const urlObj = new URL(finalUrl)
 
-    const { city, country } = extractCityCountry(det?.addressComponents)
-    const cuisines = toCuisine(det?.types)
+    // 2) If the URL already has a place_id param, use it
+    let placeId = urlObj.searchParams.get('place_id') || ''
 
-    const out = {
-      source: 'google',
-      place_id: first.id,
-      name: det?.displayName?.text || first?.displayName?.text || null,
-      address: det?.formattedAddress || first?.formattedAddress || null,
-      city: city || null,
-      country: country || null,
-      lat: det?.location?.latitude ?? first?.location?.latitude ?? null,
-      lng: det?.location?.longitude ?? first?.location?.longitude ?? null,
-      website: det?.websiteUri || null,
-      phone: det?.internationalPhoneNumber || null,
-      price_level: typeof det?.priceLevel === 'number' ? det.priceLevel : (typeof first?.priceLevel === 'number' ? first.priceLevel : null),
-      rating: typeof det?.rating === 'number' ? det.rating : (typeof first?.rating === 'number' ? first.rating : null),
-      types: det?.types || first?.types || [],
-      editorial_summary: det?.editorialSummary?.text || null,
-      opening_hours: det?.openingHours || null,
-      cuisines,
-      place_url: `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(det?.displayName?.text || '')}&query_place_id=${encodeURIComponent(first.id)}`,
+    // 3) Otherwise, use "Find Place from Text" with a guessed query
+    if (!placeId) {
+      const query = guessQueryFromUrl(urlObj)
+      const fp = new URL('https://maps.googleapis.com/maps/api/place/findplacefromtext/json')
+      fp.searchParams.set('input', query)
+      fp.searchParams.set('inputtype', 'textquery')
+      fp.searchParams.set('fields', 'place_id,geometry')
+      fp.searchParams.set('key', apiKey)
+
+      const fpRes = await fetch(fp.toString())
+      const fpJson = (await fpRes.json()) as GDetailsResp
+      const cand = fpJson?.candidates?.[0]
+      placeId = cand?.place_id || ''
+      if (!placeId) {
+        return NextResponse.json({ error: 'Could not resolve a place from this link.' }, { status: 404 })
+      }
     }
 
-    return NextResponse.json(out)
+    // 4) Place Details for rich data
+    const det = new URL('https://maps.googleapis.com/maps/api/place/details/json')
+    det.searchParams.set('place_id', placeId)
+    det.searchParams.set(
+      'fields',
+      [
+        'name',
+        'formatted_address',
+        'address_component',
+        'geometry',
+        'international_phone_number',
+        'website',
+        'url',
+        'rating',
+        'price_level',
+        'opening_hours',
+        'photos',
+        'editorial_summary',
+        'types'
+      ].join(',')
+    )
+    det.searchParams.set('key', apiKey)
+
+    const detRes = await fetch(det.toString())
+    const detJson = (await detRes.json()) as GDetailsResp
+    const r = detJson?.result
+    if (!r) {
+      return NextResponse.json({ error: 'Place details not found.' }, { status: 404 })
+    }
+
+    const comps = r.address_components || []
+    const city =
+      addrPart(comps, 'locality') ||
+      addrPart(comps, 'postal_town') ||
+      addrPart(comps, 'sublocality') ||
+      null
+    const country = addrPart(comps, 'country')
+    const lat = r.geometry?.location?.lat ?? null
+    const lng = r.geometry?.location?.lng ?? null
+
+    let photoUrl: string | null = null
+    if (Array.isArray(r.photos) && r.photos.length > 0) {
+      const ref = r.photos[0]?.photo_reference
+      if (ref) {
+        const p = new URL('https://maps.googleapis.com/maps/api/place/photo')
+        p.searchParams.set('maxwidth', '800')
+        p.searchParams.set('photo_reference', ref)
+        p.searchParams.set('key', apiKey)
+        photoUrl = p.toString()
+      }
+    }
+
+    const types: string[] = Array.isArray(r.types) ? r.types : []
+    const payload = {
+      name: r.name || '',
+      address: r.formatted_address || '',
+      city,
+      country,
+      lat,
+      lng,
+      website: r.website || null,
+      url: r.url || null,
+      phone: r.international_phone_number || null,
+      rating: typeof r.rating === 'number' ? r.rating : null,
+      price_level: typeof r.price_level === 'number' ? r.price_level : null,
+      opening_hours: r.opening_hours || null,
+      tz: null as string | null, // optional: could call Time Zone API if needed
+      types: cleanTypes(types),
+      cuisines: cuisinesFromTypes(types),
+      themes: [], // fill manually in UI
+      tags: tagsFromTypes(types),
+      neighborhood: null,
+      gyg_url: null,
+      // extras for UI convenience (not stored if you don't want)
+      _photo: photoUrl,
+      _place_id: placeId,
+      _summary: r.editorial_summary?.overview || null,
+    }
+
+    return NextResponse.json(payload, { status: 200 })
   } catch (e: any) {
-    return NextResponse.json({ error: e?.message || 'resolve failed' }, { status: 500 })
+    return NextResponse.json({ error: e?.message || 'Resolve error' }, { status: 500 })
   }
 }

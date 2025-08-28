@@ -1,7 +1,7 @@
 import { Clock, ExternalLink } from 'lucide-react'
-import type { Itinerary } from '../page'
+import type { Activity } from './types'
 
-export default function DayCard({ day, index }: { day: Itinerary['days'][0], index: number }) {
+export default function DayCard({ day, index }: { day: { activities: Activity[] }, index: number }) {
   return (
     <div className="border rounded-2xl bg-white shadow-sm overflow-hidden">
       <div className="px-4 py-3 border-b bg-slate-50">

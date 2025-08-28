@@ -1,8 +1,8 @@
 'use client'
 import { useEffect, useRef } from 'react'
-import type { Itinerary } from '../page'
+import type { Activity } from './types'
 
-export default function ItineraryMap({ days }: { days: Itinerary['days'] }) {
+export default function ItineraryMap({ days }: { days: { activities: Activity[] }[] }) {
   const mapRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
