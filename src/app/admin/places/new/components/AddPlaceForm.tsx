@@ -29,11 +29,9 @@ export default function AddPlaceForm() {
     setErr(null); setMsg(null)
     try {
       setLoadingDetails(true)
-      const res = await fetch('/api/admin/resolve-place', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: mapsLink }),
-      })
+      const u = new URL('/api/admin/resolve-place', window.location.origin)
+      u.searchParams.set('url', mapsLink)
+      const res = await fetch(u.toString(), { method: 'GET' })
       const j = await res.json()
       if (!res.ok) throw new Error(j?.error || 'Failed to resolve place')
       if (j.name) setName(j.name)
@@ -42,7 +40,7 @@ export default function AddPlaceForm() {
       if (j.address) setAddress(j.address)
       if (j.neighborhood) setNeighborhood(j.neighborhood)
       if (j.website) setWebsite(j.website)
-      if (j.editorial_summary) setDescription(j.editorial_summary)
+      if (j._summary) setDescription(j._summary)
       if (typeof j.price_level === 'number') setPrice(Math.min(Math.max(j.price_level + 1, 1), 5))
       if (j.lat && j.lng) setPosition({ lat: j.lat, lng: j.lng })
       setMsg('Autofilled from Google.')

@@ -131,7 +131,8 @@ export default function AddPlacePage() {
       tags: r.tags ?? prev.tags,
       neighborhood: r.neighborhood ?? prev.neighborhood,
       gyg_url: r.gyg_url ?? prev.gyg_url,
-      google_place_id: (r.google_place_id ?? prev.google_place_id) as any, // NEW
+      // API returns `_place_id`; map it into google_place_id
+      google_place_id: ((r as any)._place_id ?? r.google_place_id ?? prev.google_place_id) as any, // NEW
     }))
   }
 

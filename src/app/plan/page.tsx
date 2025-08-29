@@ -3,15 +3,16 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import Script from 'next/script'
+// Maps script is loaded globally in layout
 import { RefreshCw, Mail, Share2, Download, MapPin } from 'lucide-react'
 
 
 // local split components
 import SummaryHeader from './components/SummaryHeader'
-import DayList from './components/DayList'
+// import DayList from './components/DayList'
 import ItineraryMap from './components/ItineraryMap'
 import Spinner from './components/Spinner'
+import type { Activity as MapActivity, DayPlan as MapDay, Itinerary as MapItinerary } from './components/types'
 
 // ==== [ADD BELOW IMPORTS] ============================================
 const CITY_HERO: Record<string, string> = {
@@ -126,10 +127,10 @@ function ChoiceChip({ icon, label }: { icon: React.ReactNode; label: string }) {
   );
 }
 // ---- Enriched stop card pulling Google details (photo/link) ----
-function StopCard({ activity, city }: { activity: Activity; city: string }) {
-  const name = activity.place?.name || activity.title
-  const lat = activity.place?.lat
-  const lng = activity.place?.lng
+function StopCard({ activity, city }: { activity: MapActivity; city: string }) {
+  const name = (activity as any).place?.name || activity.title
+  const lat = activity.lat ?? (activity as any).place?.lat
+  const lng = activity.lng ?? (activity as any).place?.lng
 
   const { data } = useGoogleDetails({ name, city, lat, lng })
 
@@ -157,8 +158,8 @@ function StopCard({ activity, city }: { activity: Activity; city: string }) {
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 text-xs text-slate-500">
           <span>{activity.time || "--:--"}</span>
-          {activity.place?.address && (
-            <span className="truncate">• {activity.place.address}</span>
+          {((activity as any).address || (activity as any).place?.address) && (
+            <span className="truncate">• {((activity as any).address || (activity as any).place?.address)}</span>
           )}
         </div>
         <a
@@ -170,9 +171,9 @@ function StopCard({ activity, city }: { activity: Activity; city: string }) {
         >
           {name}
         </a>
-        {activity.description && (
+        {(activity as any).description && (
           <div className="mt-1 line-clamp-2 text-sm text-slate-600">
-            {activity.description}
+            {(activity as any).description}
           </div>
         )}
       </div>
@@ -180,24 +181,10 @@ function StopCard({ activity, city }: { activity: Activity; city: string }) {
   )}
 // ====================================================================
 
-// shared types
-
-export type Activity = {
-  time?: string
-  title: string
-  description?: string
-  tags?: string[]
-  place?: { name: string; lat: number; lng: number; address?: string }
-}
-
-export type DayPlan = {
-  date?: string
-  activities: Activity[]
-}
-
-export type Itinerary = {
-  days: DayPlan[]
-}
+// use shared map types for stronger alignment
+type Activity = MapActivity
+type DayPlan = MapDay
+type Itinerary = MapItinerary
 
 export default function PlanPage() {
   // ---- read URL params (keep it simple for now)
@@ -256,7 +243,28 @@ const interestsArr = interestsParam
       const j = await res.json()
       if (!res.ok) throw new Error(j?.error || `Itinerary failed (${res.status})`)
       if (!j?.days || !Array.isArray(j.days)) throw new Error('No days in response.')
-      setPlan(j as Itinerary)
+
+      // Normalize activities to include both top-level lat/lng and a nested place object
+      const normalized: Itinerary = {
+        ...(j as any),
+        days: (j.days as any[]).map((d: any) => ({
+          date: d.date,
+          activities: (d.activities || []).map((a: any) => ({
+            time: a.time || undefined,
+            title: a.title || a.name || 'Place',
+            description: a.description || undefined,
+            tags: a.tags || undefined,
+            lat: typeof a.lat === 'number' ? a.lat : undefined,
+            lng: typeof a.lng === 'number' ? a.lng : undefined,
+            photoUrl: a.photoUrl || null,
+            // also expose nested shape for components that expect it
+            ...(a.address || a.lat || a.lng
+              ? { place: { name: a.title || a.name, lat: a.lat, lng: a.lng, address: a.address } }
+              : {}),
+          })),
+        })),
+      }
+      setPlan(normalized)
     } catch (e: any) {
       setErr(e?.message || 'Failed to generate itinerary.')
     } finally {
@@ -300,10 +308,6 @@ const interestsArr = interestsParam
 
   return (
     <div className="min-h-screen bg-white">
-      <Script
-        src={`https://maps.googleapis.com/maps/api/js?key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY}&libraries=places`}
-        strategy="afterInteractive"
-      />
       {/* top header (summary chips kept inside SummaryHeader) */}
       <div className="border-b bg-white/95 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
