@@ -138,6 +138,7 @@ function HeroTop({
   wake,
   setWake,
   plan,
+  onApply,
 }: {
   destination: string
   city: string
@@ -150,6 +151,7 @@ function HeroTop({
   wake: 'early' | 'standard' | 'late'
   setWake: (w: 'early' | 'standard' | 'late') => void
   plan: Itinerary | null
+  onApply: () => void
 }) {
   const paceLabel = { relaxed: 'Relaxed', balanced: 'Balanced', packed: 'Packed' }[pace]
   const wakeLabel = { early: 'Early bird', standard: 'Standard', late: 'Night owl' }[wake]
@@ -248,6 +250,14 @@ function HeroTop({
           </div>
         </div>
       </div>
+      <div className="flex items-center justify-end gap-2 border-t p-3">
+        <button
+          onClick={onApply}
+          className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700"
+        >
+          Apply changes &amp; regenerate
+        </button>
+      </div>
     </section>
   )
 }
@@ -313,9 +323,43 @@ type Activity = MapActivity & {
     lat?: number;
     lng?: number;
     address?: string;
-  }
+  };
 }
 type DayPlan = MapDay
+
+// --- Helpers to summarize a day and infer a coarse type for activities ---
+function inferType(a: Activity): 'cafe' | 'restaurant' | 'bar' | 'museum' | 'gallery' | 'park' | 'landmark' | 'other' {
+  const title = (a.title || '').toLowerCase()
+  const tags = ((a as any).tags || []) as string[]
+  const hay = [title, ...(tags.map(t => String(t).toLowerCase()))].join(' ')
+  if (/(café|cafe|coffee|espresso|roaster)/.test(hay)) return 'cafe'
+  if (/(restaurant|bistro|brasserie|diner|eatery|ristorante|trattoria)/.test(hay)) return 'restaurant'
+  if (/(bar|wine|cocktail|club|nightlife|pub)/.test(hay)) return 'bar'
+  if (/(museum|musée|museo)/.test(hay)) return 'museum'
+  if (/(gallery|galerie)/.test(hay)) return 'gallery'
+  if (/(park|garden|jardin|parc)/.test(hay)) return 'park'
+  if (/(landmark|monument|tower|cathedral|basilica|bridge|square)/.test(hay)) return 'landmark'
+  return 'other'
+}
+
+function summarizeDay(day: DayPlan, idx: number): string {
+  const acts = day.activities || []
+  if (!acts.length) return `Day ${idx + 1}: Open schedule — feel free to add stops.`
+  const first = acts[0]?.title || 'a nice start'
+  const second = acts[1]?.title
+  const final = acts[acts.length - 1]?.title
+  let mood: 'Relaxed' | 'Balanced' | 'Packed' = 'Balanced'
+  if (acts.length <= 3) mood = 'Relaxed'
+  else if (acts.length >= 6) mood = 'Packed'
+  const parts = [
+    `Day ${idx + 1}: ${mood} day starting at ${first}`,
+  ]
+  if (second) parts.push(`, then ${second}`)
+  if (final && final !== first && final !== second) parts.push(`, and wrapping up at ${final}`)
+  return parts.join('') + '.'
+}
+
+type SwapMode = 'similar' | 'any'
 type Itinerary = MapItinerary
 
 export default function PlanPage() {
@@ -339,6 +383,7 @@ export default function PlanPage() {
   const [plan, setPlan] = useState<Itinerary | null>(null)
   const [loading, setLoading] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+  const [swapTarget, setSwapTarget] = useState<{ di: number; ai: number } | null>(null)
 
   // helper to reflect quick-adjust changes back to URL
   function updateURLWithPrefs() {
@@ -456,6 +501,44 @@ export default function PlanPage() {
     URL.revokeObjectURL(a.href)
   }
 
+  // Pick an alternative activity from the current plan
+  function pickAlternative(current: Activity, mode: SwapMode): Activity | null {
+    if (!plan) return null
+    const pool: Activity[] = plan.days.flatMap(d => d.activities || [])
+    const wanted = inferType(current)
+    // Avoid exact same title
+    const filtered = pool.filter(p => (p.title || '').toLowerCase() !== (current.title || '').toLowerCase())
+    if (mode === 'similar') {
+      const sameType = filtered.filter(p => inferType(p) === wanted)
+      if (sameType.length) return sameType[Math.floor(Math.random() * sameType.length)]
+      // fallback to any if none
+    }
+    if (filtered.length) return filtered[Math.floor(Math.random() * filtered.length)]
+    return null
+  }
+
+  function swapActivity(di: number, ai: number, mode: SwapMode) {
+    if (!plan) return
+    const current = plan.days[di]?.activities?.[ai]
+    if (!current) return
+    const replacement = pickAlternative(current, mode)
+    if (!replacement) return
+
+    setPlan(prev => {
+      if (!prev) return prev
+      const next: Itinerary = JSON.parse(JSON.stringify(prev))
+      // keep the time of the original, but take content from replacement
+      const keepTime = next.days[di].activities[ai].time
+      const rep: Activity = {
+        ...replacement,
+        time: keepTime ?? replacement.time,
+      }
+      next.days[di].activities.splice(ai, 1, rep)
+      return next
+    })
+    setSwapTarget(null)
+  }
+
   return (
     <div className="min-h-screen bg-white">
       {/* top header (summary chips kept inside SummaryHeader) */}
@@ -507,14 +590,18 @@ export default function PlanPage() {
           destination={destination}
           city={city}
           days={sDays}
-          setDays={(n) => { setSDays(n); updateURLWithPrefs() }}
+          setDays={(n) => { setSDays(n); }}
           pace={sPace}
-          setPace={(p) => { setSPace(p); updateURLWithPrefs() }}
+          setPace={(p) => { setSPace(p); }}
           budget={sBudget}
-          setBudget={(n) => { setSBudget(n); updateURLWithPrefs() }}
+          setBudget={(n) => { setSBudget(n); }}
           wake={sWake}
-          setWake={(w) => { setSWake(w); updateURLWithPrefs() }}
+          setWake={(w) => { setSWake(w); }}
           plan={plan}
+          onApply={() => {
+            updateURLWithPrefs();
+            generate();
+          }}
         />
       </div>
 
@@ -560,10 +647,40 @@ export default function PlanPage() {
                           <img src={dayMap} alt={`Day ${di + 1} map`} className="hidden md:block h-28 w-auto rounded-md border" />
                         )}
                       </div>
-
+                      <div className="px-4 py-2 text-sm text-slate-700 border-b">{summarizeDay(day, di)}</div>
                       <div className="divide-y">
                         {day.activities.map((a, ai) => (
-                          <div key={ai} className="p-3">
+                          <div key={ai} className="relative p-3">
+                            {/* Swap action (top-right) */}
+                            <div className="absolute right-3 top-3">
+                              <button
+                                onClick={() => setSwapTarget(t => (t && t.di === di && t.ai === ai ? null : { di, ai }))}
+                                className="rounded-md border px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                                aria-haspopup="menu"
+                                aria-expanded={swapTarget?.di === di && swapTarget?.ai === ai}
+                              >
+                                Swap
+                              </button>
+                              {swapTarget?.di === di && swapTarget?.ai === ai && (
+                                <div role="menu" className="absolute right-0 z-10 mt-1 w-40 overflow-hidden rounded-md border bg-white shadow-md">
+                                  <button
+                                    role="menuitem"
+                                    onClick={() => swapActivity(di, ai, 'similar')}
+                                    className="block w-full px-3 py-2 text-left text-sm hover:bg-slate-50"
+                                  >
+                                    Swap with similar
+                                  </button>
+                                  <button
+                                    role="menuitem"
+                                    onClick={() => swapActivity(di, ai, 'any')}
+                                    className="block w-full px-3 py-2 text-left text-sm hover:bg-slate-50 border-t"
+                                  >
+                                    Swap with any
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+
                             <StopCard activity={a} city={destination} />
                           </div>
                         ))}
