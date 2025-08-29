@@ -1,54 +1,35 @@
-/* === Global styles for Havre === */
-
-/* Tailwind (v4) */
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* ---------------- Design tokens ---------------- */
+/* ---------------- Root theme variables ---------------- */
 :root {
-  /* Font variables provided by next/font in layout.tsx */
-  --font-sans: var(--font-geist-sans, ui-sans-serif);
-  --font-mono: var(--font-geist-mono, ui-monospace);
-  --font-serif: 'Playfair Display', Georgia, serif;
+  /* brand palette */
+  --beige: #f8f6f1;
+  --midnight: #141827;
+  --emerald: #107a5e;
+  --gold: #d4af37;
 
-  /* Brand palette */
-  --color-ivory: #F8F6F1;
-  --color-midnight: #0D1B2A;
-  --color-emerald: #0C7C59;
-  --color-beige: #D6C6B8;
-  --color-terracotta: #C97B5A;
-  --color-gold: #D4AF37;
+  /* rgb forms for alpha utilities */
+  --beige-rgb: 248 246 241;
+  --midnight-rgb: 20 24 39;
+  --emerald-rgb: 16 122 94;
+  --gold-rgb: 212 175 55;
 
-  /* Semantic surfaces */
-  --color-background: var(--color-ivory);
-  --color-foreground: var(--color-midnight);
-  --color-accent: #0ea5e9;
-  --color-muted: #bdbdbd;
-  --color-card: #ffffff;
-  --color-border: #ececec;
-
-  /* Legacy fallback */
-  --color-bg: #f9f7f6;
-  --color-text: #222;
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --color-background: #0a0a0a;
-    --color-foreground: #ededed;
-  }
+  /* fonts */
+  --font-sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto,
+    Noto Sans, Ubuntu, Cantarell, Helvetica Neue, Arial, "Apple Color Emoji",
+    "Segoe UI Emoji", "Segoe UI Symbol";
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+    "Liberation Mono", "Courier New", monospace;
 }
 
 /* ---------------- Base styles ---------------- */
-html, body {
-  max-width: 100%;
-  overflow-x: hidden;
-}
+html, body { height: 100%; }
 
 body {
-  background: var(--color-background);
-  color: var(--color-foreground);
+  background-color: var(--beige);
+  color: var(--midnight);
   font-family: var(--font-sans);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
@@ -56,42 +37,50 @@ body {
 }
 
 h1, h2, h3, h4, h5, h6 {
-  font-family: var(--font-serif);
-  font-weight: 600;
-  color: var(--color-foreground);
-  margin-bottom: 0.5rem;
+  font-weight: 700;
+  color: var(--midnight);
 }
 
-p {
-  margin-bottom: 1rem;
-  color: var(--color-foreground);
-}
+a { text-decoration: none; }
+a:hover { text-decoration: underline; }
 
-a {
-  color: var(--color-accent);
-  text-decoration: none;
-}
-a:hover {
-  text-decoration: underline;
-}
+/* ---------------- Custom utility shims ----------------
+   These map the semantic classes used in page.tsx to real CSS.
+   They’re safe with Tailwind v4 and avoid config complexity.
+-------------------------------------------------------- */
 
-ul, ol {
-  padding-left: 1.25rem;
-  margin-bottom: 1rem;
-}
+/* text colors */
+.text-midnight { color: var(--midnight); }
+.text-emerald { color: var(--emerald); }
+.text-gold { color: var(--gold); }
 
-/* ---------------- Utilities ---------------- */
-.glass {
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(6px);
-  border: 1px solid rgba(200, 200, 200, 0.3);
-}
+/* backgrounds */
+.bg-midnight { background-color: var(--midnight); }
+.bg-emerald { background-color: var(--emerald); }
+.bg-gold { background-color: var(--gold); }
+.bg-beige { background-color: var(--beige); }
 
-.section {
-  padding: 4rem 1rem;
-}
+/* borders */
+.border-midnight { border-color: var(--midnight); }
+.border-emerald { border-color: var(--emerald); }
+.border-gold { border-color: var(--gold); }
+.border-beige { border-color: var(--beige); }
 
-.text-highlight {
-  color: var(--color-emerald);
-  font-weight: 600;
+/* alpha variants (slash in class names must be escaped in CSS) */
+.bg-beige\/60 { background-color: rgb(var(--beige-rgb) / 0.60); }
+.bg-midnight\/95 { background-color: rgb(var(--midnight-rgb) / 0.95); }
+.text-white\/90 { color: rgb(255 255 255 / 0.90); }
+.text-midnight\/80 { color: rgb(var(--midnight-rgb) / 0.80); }
+.border-beige\/60 { border-color: rgb(var(--beige-rgb) / 0.60); }
+
+/* glass effect used by <GlassCard/> */
+.shadow-glass {
+  box-shadow:
+    0 1px 2px rgba(0,0,0,0.06),
+    0 8px 24px rgba(0,0,0,0.12);
 }
+.backdrop-blur-xs { backdrop-filter: blur(2px); }
+
+/* Optional: nicer text selection on brand swatches */
+.bg-emerald::selection { background: var(--emerald); color: #fff; }
+.bg-gold::selection { background: var(--gold); color: #000; }
