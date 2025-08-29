@@ -405,9 +405,30 @@ function Hero({
             />
             <div className="flex flex-col sm:flex-row gap-2 sm:gap-0">
               <button
-                onClick={() => {
-                  window.location.href = planPromptHref
-                }}
+                onClick={async () => {
+  try {
+    // fire-and-forget save (don’t block navigation)
+    fetch('/api/requests', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        city: city.trim() || destination,
+        destination,
+        days,
+        pace,
+        budget,
+        wake,
+        interests: Object.entries(selectedCats)
+          .filter(([, v]) => v)
+          .map(([k]) => k),
+        prompt,
+        source: 'landing',
+      }),
+    }).catch(() => {})
+  } finally {
+    window.location.href = planPromptHref
+  }
+}}
                 className="sm:rounded-l-none rounded-b-2xl sm:rounded-b-none sm:rounded-r-2xl rounded-r-2xl bg-emerald text-white font-semibold px-10 py-6 text-xl transition hover:bg-emerald/90 focus:outline-none focus:ring-2 focus:ring-emerald border border-white/40 shadow"
                 style={{ fontFamily: 'Tenor Sans, var(--font-sans), sans-serif' }}
               >
@@ -417,7 +438,7 @@ function Hero({
           </div>
         </GlassCard>
 
-        {/* Toggle preferences */}
+        /* Toggle preferences */
         <div className="mt-4">
           <button
             onClick={() => setShowPrefs(!showPrefs)}

@@ -9,9 +9,7 @@ import clsx from 'clsx'
 
 
 // local split components
-import SummaryHeader from './components/SummaryHeader'
 // import DayList from './components/DayList'
-import ItineraryMap from './components/ItineraryMap'
 import Spinner from './components/Spinner'
 import type { Activity as MapActivity, DayPlan as MapDay, Itinerary as MapItinerary } from './components/types'
 
@@ -153,41 +151,30 @@ function HeroTop({
   setWake: (w: 'early' | 'standard' | 'late') => void
   plan: Itinerary | null
 }) {
-  const HERO_H = 360; // sync with map
   const paceLabel = { relaxed: 'Relaxed', balanced: 'Balanced', packed: 'Packed' }[pace]
   const wakeLabel = { early: 'Early bird', standard: 'Standard', late: 'Night owl' }[wake]
   const budgetLabel = ['—', '€', '€€', '€€€', '€€€€', '€€€€€'][budget] || '€€€'
 
   return (
     <section className="mb-6 overflow-hidden rounded-2xl border bg-white">
-      <div className="grid gap-0 lg:grid-cols-[1fr,420px]">
-        {/* Left: hero with background */}
+      <div
+        className="relative"
+        style={{ height: 360 }}
+      >
         <div
-          className="relative"
-          style={{ height: HERO_H }}
-        >
-          <div
-            className="absolute inset-0 bg-cover bg-center"
-            style={{ backgroundImage: `url(${cityHeroFor(city)})` }}
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/25 to-transparent" />
+          className="absolute inset-0 bg-cover bg-center"
+          style={{ backgroundImage: `url(${cityHeroFor(city)})` }}
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/25 to-transparent" />
 
-          <div className="absolute inset-x-0 bottom-0 p-5 sm:p-6">
-            <h1 className="text-2xl sm:text-3xl font-semibold text-white drop-shadow">
-              {days}-day trip to {destination}
-            </h1>
-            <div className="mt-3 flex flex-wrap items-center gap-2">
-              <ChoiceChip icon={<span className="text-xs">⏱</span>} label={paceLabel} />
-              <ChoiceChip icon={<span className="text-xs">€</span>} label={`Budget: ${budgetLabel}`} />
-              <ChoiceChip icon={<span className="text-xs">☀️</span>} label={wakeLabel} />
-            </div>
-          </div>
-        </div>
-
-        {/* Right: integrated map same height */}
-        <div className="border-l bg-white">
-          <div className="h-full" style={{ height: HERO_H }}>
-            <ItineraryMap days={plan?.days || []} />
+        <div className="absolute inset-x-0 bottom-0 p-5 sm:p-6">
+          <h1 className="text-2xl sm:text-3xl font-semibold text-white drop-shadow">
+            {days}-day trip to {destination}
+          </h1>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <ChoiceChip icon={<span className="text-xs">⏱</span>} label={paceLabel} />
+            <ChoiceChip icon={<span className="text-xs">€</span>} label={`Budget: ${budgetLabel}`} />
+            <ChoiceChip icon={<span className="text-xs">☀️</span>} label={wakeLabel} />
           </div>
         </div>
       </div>
@@ -320,7 +307,14 @@ function StopCard({ activity, city }: { activity: MapActivity; city: string }) {
 // ====================================================================
 
 // use shared map types for stronger alignment
-type Activity = MapActivity
+type Activity = MapActivity & {
+  place?: {
+    name?: string;
+    lat?: number;
+    lng?: number;
+    address?: string;
+  }
+}
 type DayPlan = MapDay
 type Itinerary = MapItinerary
 
@@ -553,14 +547,6 @@ export default function PlanPage() {
 
           {plan && !loading && (
             <>
-              <SummaryHeader
-                destination={destination}
-                days={plan.days?.length || 0}
-                hours={hours}
-                pace={pace}
-                budget={String(budget)}
-              />
-
               {/* Enriched days with Google data */}
               <div className="mt-6 space-y-10">
                 {plan.days.map((day, di) => {

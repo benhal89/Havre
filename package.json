@@ -10,7 +10,7 @@
   },
   "dependencies": {
     "@supabase/ssr": "^0.7.0",
-    "@supabase/supabase-js": "^2.56.0",
+    "@supabase/supabase-js": "^2.45.4",
     "@swc/helpers": "0.5.12",
     "clsx": "^2.1.1",
     "framer-motion": "^12.23.12",

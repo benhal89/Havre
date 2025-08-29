@@ -1,37 +1,41 @@
-// src/lib/supabase/server.ts
-import { cookies } from 'next/headers'
+// src/lib/supabaseServer.ts
+import { createClient } from '@supabase/supabase-js'
 
-type CookieOptions = {
-  domain?: string
-  expires?: Date
-  httpOnly?: boolean
-  maxAge?: number
-  path?: string
-  sameSite?: 'strict' | 'lax' | 'none'
-  secure?: boolean
+/**
+ * Lightweight server-side Supabase client that does NOT touch Next.js cookies.
+ * Use for public, read-mostly endpoints (e.g., itinerary building).
+ */
+export function supabaseService() {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY! // anon is fine for selects & open inserts with RLS
+  return createClient(url, key, { auth: { persistSession: false } })
 }
-import { createServerClient } from '@supabase/ssr'
 
-export async function supabaseServer() {
-  // Next 15: must await dynamic APIs once
-  const cookieStore = await cookies()
+export type PlaceRow = {
+  id: string
+  name: string
+  description: string | null
+  address: string | null
+  neighborhood: string | null
+  city: string
+  country: string
+  lat: number
+  lng: number
+  tags: string[] | null
+  types: string[] | null
+  price_level: number | null
+}
 
-  return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      cookies: {
-        // Use getAll to avoid repeated cookies().get(...) hints
-        getAll() {
-          return cookieStore.getAll()
-        },
-        set(name: string, value: string, options: CookieOptions) {
-          cookieStore.set({ name, value, ...options })
-        },
-        remove(name: string, options: CookieOptions) {
-          cookieStore.set({ name, value: '', ...options })
-        },
-      } as any,
-    }
-  )
+export type RequestInsert = {
+  city: string
+  destination?: string | null
+  days: number
+  pace: 'relaxed' | 'balanced' | 'packed'
+  budget: number | string
+  wake: 'early' | 'standard' | 'late'
+  interests: string[]
+  prompt?: string
+  style?: string | null
+  country?: string | null
+  source?: string | null
 }
