@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 // Maps script is loaded globally in layout
 import { RefreshCw, Mail, Share2, Download, MapPin } from 'lucide-react'
+import clsx from 'clsx'
 
 
 // local split components
@@ -126,6 +127,143 @@ function ChoiceChip({ icon, label }: { icon: React.ReactNode; label: string }) {
     </span>
   );
 }
+// ---- HeroTop component for trip summary and quick adjust controls ----
+function HeroTop({
+  destination,
+  city,
+  days,
+  setDays,
+  pace,
+  setPace,
+  budget,
+  setBudget,
+  wake,
+  setWake,
+  plan,
+}: {
+  destination: string
+  city: string
+  days: number
+  setDays: (n: number) => void
+  pace: 'relaxed' | 'balanced' | 'packed'
+  setPace: (p: 'relaxed' | 'balanced' | 'packed') => void
+  budget: number
+  setBudget: (n: number) => void
+  wake: 'early' | 'standard' | 'late'
+  setWake: (w: 'early' | 'standard' | 'late') => void
+  plan: Itinerary | null
+}) {
+  const HERO_H = 360; // sync with map
+  const paceLabel = { relaxed: 'Relaxed', balanced: 'Balanced', packed: 'Packed' }[pace]
+  const wakeLabel = { early: 'Early bird', standard: 'Standard', late: 'Night owl' }[wake]
+  const budgetLabel = ['—', '€', '€€', '€€€', '€€€€', '€€€€€'][budget] || '€€€'
+
+  return (
+    <section className="mb-6 overflow-hidden rounded-2xl border bg-white">
+      <div className="grid gap-0 lg:grid-cols-[1fr,420px]">
+        {/* Left: hero with background */}
+        <div
+          className="relative"
+          style={{ height: HERO_H }}
+        >
+          <div
+            className="absolute inset-0 bg-cover bg-center"
+            style={{ backgroundImage: `url(${cityHeroFor(city)})` }}
+          />
+          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/25 to-transparent" />
+
+          <div className="absolute inset-x-0 bottom-0 p-5 sm:p-6">
+            <h1 className="text-2xl sm:text-3xl font-semibold text-white drop-shadow">
+              {days}-day trip to {destination}
+            </h1>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <ChoiceChip icon={<span className="text-xs">⏱</span>} label={paceLabel} />
+              <ChoiceChip icon={<span className="text-xs">€</span>} label={`Budget: ${budgetLabel}`} />
+              <ChoiceChip icon={<span className="text-xs">☀️</span>} label={wakeLabel} />
+            </div>
+          </div>
+        </div>
+
+        {/* Right: integrated map same height */}
+        <div className="border-l bg-white">
+          <div className="h-full" style={{ height: HERO_H }}>
+            <ItineraryMap days={plan?.days || []} />
+          </div>
+        </div>
+      </div>
+
+      {/* quick adjust controls */}
+      <div className="grid gap-4 border-t p-4 sm:grid-cols-2 md:grid-cols-4">
+        <div>
+          <div className="mb-1 text-xs font-medium text-slate-600">Days</div>
+          <input
+            type="range"
+            min={2}
+            max={14}
+            value={days}
+            onChange={(e) => setDays(Number(e.target.value))}
+            className="w-full accent-sky-600"
+          />
+          <div className="mt-1 text-xs text-slate-600">{days} days</div>
+        </div>
+
+        <div>
+          <div className="mb-1 text-xs font-medium text-slate-600">Pace</div>
+          <div className="flex gap-1">
+            {(['relaxed', 'balanced', 'packed'] as const).map((p) => (
+              <button
+                key={p}
+                onClick={() => setPace(p)}
+                className={clsx(
+                  'rounded-lg border px-2.5 py-1.5 text-xs',
+                  pace === p ? 'bg-sky-600 text-white border-sky-600' : 'hover:bg-slate-50'
+                )}
+              >
+                {p[0].toUpperCase() + p.slice(1)}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <div className="mb-1 text-xs font-medium text-slate-600">Budget</div>
+          <div className="flex flex-wrap gap-1">
+            {[1, 2, 3, 4, 5].map((b) => (
+              <button
+                key={b}
+                onClick={() => setBudget(b)}
+                className={clsx(
+                  'rounded-lg border px-2.5 py-1.5 text-xs',
+                  budget === b ? 'bg-sky-600 text-white border-sky-600' : 'hover:bg-slate-50'
+                )}
+              >
+                {'€'.repeat(b)}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div>
+          <div className="mb-1 text-xs font-medium text-slate-600">Daily rhythm</div>
+          <div className="flex gap-1">
+            {(['early', 'standard', 'late'] as const).map((w) => (
+              <button
+                key={w}
+                onClick={() => setWake(w)}
+                className={clsx(
+                  'rounded-lg border px-2.5 py-1.5 text-xs',
+                  wake === w ? 'bg-sky-600 text-white border-sky-600' : 'hover:bg-slate-50'
+                )}
+              >
+                {w === 'early' ? 'Early' : w === 'late' ? 'Night' : 'Standard'}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
 // ---- Enriched stop card pulling Google details (photo/link) ----
 function StopCard({ activity, city }: { activity: MapActivity; city: string }) {
   const name = (activity as any).place?.name || activity.title
@@ -190,16 +328,36 @@ export default function PlanPage() {
   // ---- read URL params (keep it simple for now)
   const params = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '')
   const destination = params.get('d') || 'Paris'
+  const city = params.get('city') || destination
   const autostart = params.get('autostart') === '1'
   const hours = params.get('hours') || 'balanced'
   const pace = params.get('pace') || 'balanced'
   const budget = params.get('budget') || '3'
   const homeName = params.get('home_name') || ''
 
+  // ---- local adjustable state for quick adjust controls
+  const [sDays, setSDays] = useState<number>(Number(params.get('days') || '3'))
+  const [sPace, setSPace] = useState<'relaxed' | 'balanced' | 'packed'>(((params.get('pace') as any) || 'balanced') as 'relaxed' | 'balanced' | 'packed')
+  const [sBudget, setSBudget] = useState<number>(Number(params.get('budget') || '3'))
+  const [sWake, setSWake] = useState<'early' | 'standard' | 'late'>(((params.get('wake') as any) || 'standard') as 'early' | 'standard' | 'late')
+
   // ---- state
   const [plan, setPlan] = useState<Itinerary | null>(null)
   const [loading, setLoading] = useState(false)
   const [err, setErr] = useState<string | null>(null)
+
+  // helper to reflect quick-adjust changes back to URL
+  function updateURLWithPrefs() {
+    const u = new URL(window.location.href)
+    const sp = u.searchParams
+    sp.set('d', destination)
+    sp.set('city', city)
+    sp.set('pace', sPace)
+    sp.set('budget', String(sBudget))
+    sp.set('days', String(sDays))
+    sp.set('wake', sWake)
+    window.history.replaceState({}, '', u.toString())
+  }
 
   useEffect(() => {
     if (autostart && !plan && !loading) void generate()
@@ -208,13 +366,13 @@ export default function PlanPage() {
 
   async function generate() {
     // Read URL params once at the top of the component (you likely have this already):
-// const params = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '')
+    // const params = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '')
 
-const interestsParam = params.get('interests') || '' // "cafes,museums" or ""
-const interestsArr = interestsParam
-  .split(',')
-  .map((s) => s.trim().toLowerCase())
-  .filter(Boolean)
+    const interestsParam = params.get('interests') || '' // "cafes,museums" or ""
+    const interestsArr = interestsParam
+      .split(',')
+      .map((s) => s.trim().toLowerCase())
+      .filter(Boolean)
     setLoading(true)
     setErr(null)
     setPlan(null)
@@ -223,17 +381,15 @@ const interestsArr = interestsParam
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-  destination,
-  city: params.get('city') || undefined,
-  // keep whatever you already send:
-  budget: params.get('budget') || '3',
-  pace: params.get('pace') || 'balanced',
-  days: Number(params.get('days') || '3'),
-  wake: params.get('wake') || 'standard',
-  interests: interestsArr, // <-- now an array, not a string
-  // optional: include raw prompt if you have it
-  prompt: params.get('q') || ''
-}),
+          destination,
+          city: params.get('city') || undefined,
+          budget: String(sBudget),
+          pace: sPace,
+          days: sDays,
+          wake: sWake,
+          interests: interestsArr,
+          prompt: params.get('q') || ''
+        }),
       })
       const ctype = res.headers.get('content-type') || ''
       if (!ctype.includes('application/json')) {
@@ -351,6 +507,23 @@ const interestsArr = interestsParam
         </div>
       </div>
 
+      {/* hero section with quick adjust controls and integrated map */}
+      <div className="mx-auto max-w-6xl px-4 pt-6">
+        <HeroTop
+          destination={destination}
+          city={city}
+          days={sDays}
+          setDays={(n) => { setSDays(n); updateURLWithPrefs() }}
+          pace={sPace}
+          setPace={(p) => { setSPace(p); updateURLWithPrefs() }}
+          budget={sBudget}
+          setBudget={(n) => { setSBudget(n); updateURLWithPrefs() }}
+          wake={sWake}
+          setWake={(w) => { setSWake(w); updateURLWithPrefs() }}
+          plan={plan}
+        />
+      </div>
+
       {/* main content */}
       <div className="mx-auto max-w-6xl px-4 py-6 grid gap-6 lg:grid-cols-[1fr,380px]">
         <div>
@@ -416,10 +589,7 @@ const interestsArr = interestsParam
             </>
           )}
         </div>
-
-        <aside className="sticky top-[76px] self-start">
-          <ItineraryMap days={plan?.days || []} />
-        </aside>
+        {/* The aside with map is now removed, as map is in hero */}
       </div>
     </div>
   )
