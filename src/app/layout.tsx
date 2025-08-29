@@ -1,6 +1,6 @@
 import './globals.css'
 import type { Metadata } from 'next'
-import { Inter, Geist_Mono } from 'next/font/google'
+import { Inter, Geist_Mono, Playfair_Display } from 'next/font/google'
 import Script from 'next/script'
 
 const inter = Inter({
@@ -11,6 +11,12 @@ const inter = Inter({
 const mono = Geist_Mono({
   variable: '--font-mono',
   subsets: ['latin'],
+})
+
+const serif = Playfair_Display({
+  variable: '--font-serif',
+  subsets: ['latin'],
+  weight: ['400','700'],
 })
 
 export const metadata: Metadata = {
@@ -28,7 +34,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           strategy="beforeInteractive"
         />
       </head>
-      <body className={`${inter.variable} ${mono.variable} antialiased`}>
+      <body className={`${inter.variable} ${mono.variable} ${serif.variable} antialiased`}>
         {children}
       </body>
     </html>
