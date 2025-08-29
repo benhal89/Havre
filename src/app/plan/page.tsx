@@ -4,16 +4,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 // Maps script is loaded globally in layout
-import { RefreshCw, Mail, Share2, Download, MapPin } from 'lucide-react'
+import { RefreshCw, Mail, Share2, Download, MapPin, Shuffle } from 'lucide-react'
 import clsx from 'clsx'
 
-
-// local split components
-// import DayList from './components/DayList'
+// import Spinner + shared types
 import Spinner from './components/Spinner'
 import type { Activity as MapActivity, DayPlan as MapDay, Itinerary as MapItinerary } from './components/types'
 
-// ==== [ADD BELOW IMPORTS] ============================================
+// ---------------- City hero helpers ----------------
 const CITY_HERO: Record<string, string> = {
   paris:
     'https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=2000&q=80',
@@ -23,17 +21,18 @@ const CITY_HERO: Record<string, string> = {
     'https://images.unsplash.com/photo-1528909514045-2fa4ac7a08ba?auto=format&fit=crop&w=2000&q=80',
   barcelona:
     'https://images.unsplash.com/photo-1464790719320-516ecd75af6c?auto=format&fit=crop&w=2000&q=80',
-};
+}
 
 function cityHeroFor(city?: string) {
-  const key = (city || '').toLowerCase().trim();
-  return CITY_HERO[key] || 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=2000&q=80';
+  const key = (city || '').toLowerCase().trim()
+  return CITY_HERO[key] || 'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=2000&q=80'
 }
 
 function googleSearchUrl(name: string, city?: string) {
-  const q = encodeURIComponent(`${name} ${city || ''}`.trim());
-  return `https://www.google.com/maps/search/?api=1&query=${q}`;
+  const q = encodeURIComponent(`${name} ${city || ''}`.trim())
+  return `https://www.google.com/maps/search/?api=1&query=${q}`
 }
+
 type GoogleDetails = {
   placeId: string | null
   photoUrl: string | null
@@ -44,12 +43,10 @@ type GoogleDetails = {
 
 function useGoogleDetails(stop: { name: string; city?: string; lat?: number; lng?: number }) {
   const [data, setData] = useState<GoogleDetails | null>(null)
-  const [loading, setLoading] = useState(false)
 
   useEffect(() => {
     let alive = true
     async function run() {
-      setLoading(true)
       try {
         const u = new URL('/api/google/place-details', window.location.origin)
         u.searchParams.set('name', stop.name)
@@ -61,20 +58,16 @@ function useGoogleDetails(stop: { name: string; city?: string; lat?: number; lng
         if (alive) setData(json)
       } catch {
         if (alive) setData(null)
-      } finally {
-        if (alive) setLoading(false)
       }
     }
     run()
-    return () => {
-      alive = false
-    }
+    return () => { alive = false }
   }, [stop.name, stop.city, stop.lat, stop.lng])
 
-  return { data, loading }
+  return { data }
 }
 
-// If a place has lat/lng we can draw a Static Maps thumbnail
+// -------- Static map helpers --------
 function staticMapThumb(lat?: number, lng?: number, label: string = '•') {
   const key =
     process.env.NEXT_PUBLIC_GOOGLE_PLACES_API_KEY ||
@@ -93,39 +86,38 @@ function staticMapThumb(lat?: number, lng?: number, label: string = '•') {
   return `${base}?${params.toString()}`
 }
 
-// Build a Static Map for an entire day with multiple markers
 function staticMapForDay(stops: { lat?: number; lng?: number }[]) {
   const key =
     process.env.NEXT_PUBLIC_GOOGLE_PLACES_API_KEY ||
     process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY ||
     ''
-  if (!key || stops.length === 0) return null;
-  const base = 'https://maps.googleapis.com/maps/api/staticmap';
+  if (!key || stops.length === 0) return null
+  const base = 'https://maps.googleapis.com/maps/api/staticmap'
   const params = new URLSearchParams({
     scale: '2',
     size: '1200x280',
     maptype: 'roadmap',
     key,
-  });
-  // up to ~20 markers is fine for Static Maps
+  })
   const markers = stops
-    .filter(s => !!s.lat && !!s.lng)
+    .filter((s) => !!s.lat && !!s.lng)
     .slice(0, 20)
-    .map((s, i) => `color:blue|label:${String.fromCharCode(65 + (i % 26))}|${s.lat},${s.lng}`);
-  markers.forEach(m => params.append('markers', m));
-  return `${base}?${params.toString()}`;
+    .map((s, i) => `color:blue|label:${String.fromCharCode(65 + (i % 26))}|${s.lat},${s.lng}`)
+  markers.forEach((m) => params.append('markers', m))
+  return `${base}?${params.toString()}`
 }
 
-// Small UI chips used in the header for choices
+// -------- Small UI chip --------
 function ChoiceChip({ icon, label }: { icon: React.ReactNode; label: string }) {
   return (
     <span className="inline-flex items-center gap-2 rounded-full border border-white/40 bg-white/12 text-white px-3 py-1 text-sm backdrop-blur-sm">
       {icon}
       <span className="font-medium drop-shadow-sm">{label}</span>
     </span>
-  );
+  )
 }
-// ---- HeroTop component for trip summary and quick adjust controls ----
+
+// ---------------- Hero with quick adjust ----------------
 function HeroTop({
   destination,
   city,
@@ -159,16 +151,12 @@ function HeroTop({
 
   return (
     <section className="mb-6 overflow-hidden rounded-2xl border bg-white">
-      <div
-        className="relative"
-        style={{ height: 360 }}
-      >
+      <div className="relative" style={{ height: 360 }}>
         <div
           className="absolute inset-0 bg-cover bg-center"
           style={{ backgroundImage: `url(${cityHeroFor(city)})` }}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/25 to-transparent" />
-
         <div className="absolute inset-x-0 bottom-0 p-5 sm:p-6">
           <h1 className="text-2xl sm:text-3xl font-semibold text-white drop-shadow">
             {days}-day trip to {destination}
@@ -179,6 +167,16 @@ function HeroTop({
             <ChoiceChip icon={<span className="text-xs">☀️</span>} label={wakeLabel} />
           </div>
         </div>
+      </div>
+
+      {/* Apply toolbar above sliders */}
+      <div className="flex items-center justify-end p-3">
+        <button
+          onClick={onApply}
+          className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700"
+        >
+          Apply changes &amp; regenerate
+        </button>
       </div>
 
       {/* quick adjust controls */}
@@ -205,7 +203,7 @@ function HeroTop({
                 onClick={() => setPace(p)}
                 className={clsx(
                   'rounded-lg border px-2.5 py-1.5 text-xs',
-                  pace === p ? 'bg-sky-600 text-white border-sky-600' : 'hover:bg-slate-50'
+                  pace === p ? 'bg-sky-600 text-white border-sky-600' : 'hover:bg-slate-50',
                 )}
               >
                 {p[0].toUpperCase() + p.slice(1)}
@@ -223,7 +221,7 @@ function HeroTop({
                 onClick={() => setBudget(b)}
                 className={clsx(
                   'rounded-lg border px-2.5 py-1.5 text-xs',
-                  budget === b ? 'bg-sky-600 text-white border-sky-600' : 'hover:bg-slate-50'
+                  budget === b ? 'bg-sky-600 text-white border-sky-600' : 'hover:bg-slate-50',
                 )}
               >
                 {'€'.repeat(b)}
@@ -241,7 +239,7 @@ function HeroTop({
                 onClick={() => setWake(w)}
                 className={clsx(
                   'rounded-lg border px-2.5 py-1.5 text-xs',
-                  wake === w ? 'bg-sky-600 text-white border-sky-600' : 'hover:bg-slate-50'
+                  wake === w ? 'bg-sky-600 text-white border-sky-600' : 'hover:bg-slate-50',
                 )}
               >
                 {w === 'early' ? 'Early' : w === 'late' ? 'Night' : 'Standard'}
@@ -250,18 +248,11 @@ function HeroTop({
           </div>
         </div>
       </div>
-      <div className="flex items-center justify-end gap-2 border-t p-3">
-        <button
-          onClick={onApply}
-          className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700"
-        >
-          Apply changes &amp; regenerate
-        </button>
-      </div>
     </section>
   )
 }
-// ---- Enriched stop card pulling Google details (photo/link) ----
+
+// --------------- Stop card ---------------
 function StopCard({ activity, city }: { activity: MapActivity; city: string }) {
   const name = (activity as any).place?.name || activity.title
   const lat = activity.lat ?? (activity as any).place?.lat
@@ -272,19 +263,15 @@ function StopCard({ activity, city }: { activity: MapActivity; city: string }) {
   const googleUrl = data?.googleUrl || googleSearchUrl(name, city)
   const photoUrl =
     data?.photoUrl ||
-    (lat && lng ? staticMapThumb(lat, lng) :
-      // last‑resort city image placeholder
-      `https://source.unsplash.com/640x360/?${encodeURIComponent(city + ' city')}`)
+    (lat && lng
+      ? staticMapThumb(lat, lng)
+      : `https://source.unsplash.com/640x360/?${encodeURIComponent(city + ' city')}`)
 
   return (
     <div className="flex gap-4 rounded-xl border bg-white p-3 hover:shadow-sm">
       {photoUrl ? (
         <a href={googleUrl} target="_blank" rel="noopener noreferrer" className="block shrink-0">
-          <img
-            src={photoUrl}
-            alt={name}
-            className="h-28 w-40 rounded-lg object-cover"
-          />
+          <img src={photoUrl} alt={name} className="h-28 w-40 rounded-lg object-cover" />
         </a>
       ) : (
         <div className="h-28 w-40 shrink-0 rounded-lg bg-slate-100" />
@@ -292,9 +279,11 @@ function StopCard({ activity, city }: { activity: MapActivity; city: string }) {
 
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2 text-xs text-slate-500">
-          <span>{activity.time || "--:--"}</span>
+          <span>{activity.time || '--:--'}</span>
           {((activity as any).address || (activity as any).place?.address) && (
-            <span className="truncate">• {((activity as any).address || (activity as any).place?.address)}</span>
+            <span className="truncate">
+              • {((activity as any).address || (activity as any).place?.address)}
+            </span>
           )}
         </div>
         <a
@@ -313,25 +302,33 @@ function StopCard({ activity, city }: { activity: MapActivity; city: string }) {
         )}
       </div>
     </div>
-  )}
-// ====================================================================
+  )
+}
 
-// use shared map types for stronger alignment
+// --------------- Types & helpers ---------------
 type Activity = MapActivity & {
   place?: {
-    name?: string;
-    lat?: number;
-    lng?: number;
-    address?: string;
-  };
+    name?: string
+    lat?: number
+    lng?: number
+    address?: string
+  }
 }
 type DayPlan = MapDay
+type Itinerary = MapItinerary
 
-// --- Helpers to summarize a day and infer a coarse type for activities ---
-function inferType(a: Activity): 'cafe' | 'restaurant' | 'bar' | 'museum' | 'gallery' | 'park' | 'landmark' | 'other' {
+function inferType(a: Activity):
+  | 'cafe'
+  | 'restaurant'
+  | 'bar'
+  | 'museum'
+  | 'gallery'
+  | 'park'
+  | 'landmark'
+  | 'other' {
   const title = (a.title || '').toLowerCase()
-  const tags = ((a as any).tags || []) as string[]
-  const hay = [title, ...(tags.map(t => String(t).toLowerCase()))].join(' ')
+  const tags = (((a as any).tags || []) as string[]).map((t) => t.toLowerCase())
+  const hay = [title, ...tags].join(' ')
   if (/(café|cafe|coffee|espresso|roaster)/.test(hay)) return 'cafe'
   if (/(restaurant|bistro|brasserie|diner|eatery|ristorante|trattoria)/.test(hay)) return 'restaurant'
   if (/(bar|wine|cocktail|club|nightlife|pub)/.test(hay)) return 'bar'
@@ -351,19 +348,14 @@ function summarizeDay(day: DayPlan, idx: number): string {
   let mood: 'Relaxed' | 'Balanced' | 'Packed' = 'Balanced'
   if (acts.length <= 3) mood = 'Relaxed'
   else if (acts.length >= 6) mood = 'Packed'
-  const parts = [
-    `Day ${idx + 1}: ${mood} day starting at ${first}`,
-  ]
+  const parts = [`Day ${idx + 1}: ${mood} day starting at ${first}`]
   if (second) parts.push(`, then ${second}`)
   if (final && final !== first && final !== second) parts.push(`, and wrapping up at ${final}`)
   return parts.join('') + '.'
 }
 
-type SwapMode = 'similar' | 'any'
-type Itinerary = MapItinerary
-
+// --------------- Page ---------------
 export default function PlanPage() {
-  // ---- read URL params (keep it simple for now)
   const params = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '')
   const destination = params.get('d') || 'Paris'
   const city = params.get('city') || destination
@@ -373,19 +365,19 @@ export default function PlanPage() {
   const budget = params.get('budget') || '3'
   const homeName = params.get('home_name') || ''
 
-  // ---- local adjustable state for quick adjust controls
   const [sDays, setSDays] = useState<number>(Number(params.get('days') || '3'))
-  const [sPace, setSPace] = useState<'relaxed' | 'balanced' | 'packed'>(((params.get('pace') as any) || 'balanced') as 'relaxed' | 'balanced' | 'packed')
+  const [sPace, setSPace] = useState<'relaxed' | 'balanced' | 'packed'>(
+    ((params.get('pace') as any) || 'balanced') as 'relaxed' | 'balanced' | 'packed',
+  )
   const [sBudget, setSBudget] = useState<number>(Number(params.get('budget') || '3'))
-  const [sWake, setSWake] = useState<'early' | 'standard' | 'late'>(((params.get('wake') as any) || 'standard') as 'early' | 'standard' | 'late')
+  const [sWake, setSWake] = useState<'early' | 'standard' | 'late'>(
+    ((params.get('wake') as any) || 'standard') as 'early' | 'standard' | 'late',
+  )
 
-  // ---- state
   const [plan, setPlan] = useState<Itinerary | null>(null)
   const [loading, setLoading] = useState(false)
   const [err, setErr] = useState<string | null>(null)
-  const [swapTarget, setSwapTarget] = useState<{ di: number; ai: number } | null>(null)
 
-  // helper to reflect quick-adjust changes back to URL
   function updateURLWithPrefs() {
     const u = new URL(window.location.href)
     const sp = u.searchParams
@@ -404,14 +396,12 @@ export default function PlanPage() {
   }, [autostart])
 
   async function generate() {
-    // Read URL params once at the top of the component (you likely have this already):
-    // const params = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '')
-
-    const interestsParam = params.get('interests') || '' // "cafes,museums" or ""
+    const interestsParam = params.get('interests') || ''
     const interestsArr = interestsParam
       .split(',')
       .map((s) => s.trim().toLowerCase())
       .filter(Boolean)
+
     setLoading(true)
     setErr(null)
     setPlan(null)
@@ -427,19 +417,18 @@ export default function PlanPage() {
           days: sDays,
           wake: sWake,
           interests: interestsArr,
-          prompt: params.get('q') || ''
+          prompt: params.get('q') || '',
         }),
       })
       const ctype = res.headers.get('content-type') || ''
       if (!ctype.includes('application/json')) {
         const text = await res.text()
-        throw new Error(`API returned non-JSON (${res.status}). ${text.slice(0,120)}`)
+        throw new Error(`API returned non-JSON (${res.status}). ${text.slice(0, 120)}`)
       }
       const j = await res.json()
       if (!res.ok) throw new Error(j?.error || `Itinerary failed (${res.status})`)
       if (!j?.days || !Array.isArray(j.days)) throw new Error('No days in response.')
 
-      // Normalize activities to include both top-level lat/lng and a nested place object
       const normalized: Itinerary = {
         ...(j as any),
         days: (j.days as any[]).map((d: any) => ({
@@ -452,7 +441,6 @@ export default function PlanPage() {
             lat: typeof a.lat === 'number' ? a.lat : undefined,
             lng: typeof a.lng === 'number' ? a.lng : undefined,
             photoUrl: a.photoUrl || null,
-            // also expose nested shape for components that expect it
             ...(a.address || a.lat || a.lng
               ? { place: { name: a.title || a.name, lat: a.lat, lng: a.lng, address: a.address } }
               : {}),
@@ -467,16 +455,14 @@ export default function PlanPage() {
     }
   }
 
-  // small helpers for mail/export/copy
   const mailHref = useMemo(() => {
     const subject = encodeURIComponent(`Havre plan: ${destination}`)
     const body = encodeURIComponent(
       plan
-        ? plan.days.map((d: DayPlan, i: number) =>
-            `Day ${i + 1}\n` +
-            d.activities.map((a: Activity) => `  - ${a.time || '--:--'} ${a.title}`).join('\n')
-          ).join('\n\n')
-        : 'No plan yet.'
+        ? plan.days
+            .map((d: DayPlan, i: number) => `Day ${i + 1}\n` + d.activities.map((a: Activity) => `  - ${a.time || '--:--'} ${a.title}`).join('\n'))
+            .join('\n\n')
+        : 'No plan yet.',
     )
     return `mailto:?subject=${subject}&body=${body}`
   }, [plan, destination])
@@ -488,10 +474,7 @@ export default function PlanPage() {
   function exportText() {
     if (!plan) return
     const text = plan.days
-      .map((d: DayPlan, i: number) =>
-        `Day ${i + 1}\n` +
-        d.activities.map((a: Activity) => `  - ${a.time || '--:--'} ${a.title}`).join('\n')
-      )
+      .map((d: DayPlan, i: number) => `Day ${i + 1}\n` + d.activities.map((a: Activity) => `  - ${a.time || '--:--'} ${a.title}`).join('\n'))
       .join('\n\n')
     const blob = new Blob([text], { type: 'text/plain;charset=utf-8' })
     const a = document.createElement('a')
@@ -501,33 +484,29 @@ export default function PlanPage() {
     URL.revokeObjectURL(a.href)
   }
 
-  // Pick an alternative activity from the current plan
-  function pickAlternative(current: Activity, mode: SwapMode): Activity | null {
+  function pickAlternative(current: Activity, mode: 'similar' | 'any'): Activity | null {
     if (!plan) return null
-    const pool: Activity[] = plan.days.flatMap(d => d.activities || [])
+    const pool: Activity[] = plan.days.flatMap((d) => d.activities || [])
     const wanted = inferType(current)
-    // Avoid exact same title
-    const filtered = pool.filter(p => (p.title || '').toLowerCase() !== (current.title || '').toLowerCase())
+    const filtered = pool.filter((p) => (p.title || '').toLowerCase() !== (current.title || '').toLowerCase())
     if (mode === 'similar') {
-      const sameType = filtered.filter(p => inferType(p) === wanted)
+      const sameType = filtered.filter((p) => inferType(p) === wanted)
       if (sameType.length) return sameType[Math.floor(Math.random() * sameType.length)]
-      // fallback to any if none
     }
     if (filtered.length) return filtered[Math.floor(Math.random() * filtered.length)]
     return null
   }
 
-  function swapActivity(di: number, ai: number, mode: SwapMode) {
+  function swapActivity(di: number, ai: number, mode: 'similar' | 'any') {
     if (!plan) return
     const current = plan.days[di]?.activities?.[ai]
     if (!current) return
     const replacement = pickAlternative(current, mode)
     if (!replacement) return
 
-    setPlan(prev => {
+    setPlan((prev) => {
       if (!prev) return prev
       const next: Itinerary = JSON.parse(JSON.stringify(prev))
-      // keep the time of the original, but take content from replacement
       const keepTime = next.days[di].activities[ai].time
       const rep: Activity = {
         ...replacement,
@@ -536,21 +515,21 @@ export default function PlanPage() {
       next.days[di].activities.splice(ai, 1, rep)
       return next
     })
-    setSwapTarget(null)
   }
 
   return (
     <div className="min-h-screen bg-white">
-      {/* top header (summary chips kept inside SummaryHeader) */}
+      {/* top header */}
       <div className="border-b bg-white/95 backdrop-blur">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
           <div className="min-w-0">
             <div className="truncate text-sm text-slate-500">
-              <Link href="/" className="text-sky-700 hover:underline">Havre</Link> / Planner
+              <Link href="/" className="text-sky-700 hover:underline">
+                Havre
+              </Link>{' '}
+              / Planner
             </div>
-            <div className="truncate text-lg font-semibold text-slate-900">
-              Planning for {destination}
-            </div>
+            <div className="truncate text-lg font-semibold text-slate-900">Planning for {destination}</div>
             <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-600">
               {homeName && (
                 <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5">
@@ -564,135 +543,148 @@ export default function PlanPage() {
           </div>
 
           <div className="flex shrink-0 flex-wrap items-center gap-2">
-            <button onClick={generate} disabled={loading}
-              className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50">
+            <button
+              onClick={generate}
+              disabled={loading}
+              className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50"
+            >
               <RefreshCw className="h-4 w-4" /> {loading ? 'Planning…' : 'Regenerate'}
             </button>
-            <a href={mailHref}
-              className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50">
+            <a
+              href={mailHref}
+              className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50"
+            >
               <Mail className="h-4 w-4" /> Email
             </a>
-            <button onClick={copyLink}
-              className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50">
+            <button
+              onClick={copyLink}
+              className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50"
+            >
               <Share2 className="h-4 w-4" /> Copy link
             </button>
-            <button onClick={exportText} disabled={!plan}
-              className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50 disabled:opacity-50">
+            <button
+              onClick={exportText}
+              disabled={!plan}
+              className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50 disabled:opacity-50"
+            >
               <Download className="h-4 w-4" /> Export
             </button>
           </div>
         </div>
       </div>
 
-      {/* hero section with quick adjust controls and integrated map */}
+      {/* hero + quick adjust */}
       <div className="mx-auto max-w-6xl px-4 pt-6">
         <HeroTop
           destination={destination}
           city={city}
           days={sDays}
-          setDays={(n) => { setSDays(n); }}
+          setDays={(n) => {
+            setSDays(n)
+          }}
           pace={sPace}
-          setPace={(p) => { setSPace(p); }}
+          setPace={(p) => {
+            setSPace(p)
+          }}
           budget={sBudget}
-          setBudget={(n) => { setSBudget(n); }}
+          setBudget={(n) => {
+            setSBudget(n)
+          }}
           wake={sWake}
-          setWake={(w) => { setSWake(w); }}
+          setWake={(w) => {
+            setSWake(w)
+          }}
           plan={plan}
           onApply={() => {
-            updateURLWithPrefs();
-            generate();
+            updateURLWithPrefs()
+            generate()
           }}
         />
       </div>
 
-      {/* main content */}
-      <div className="mx-auto max-w-6xl px-4 py-6 grid gap-6 lg:grid-cols-[1fr,380px]">
-        <div>
-          {!plan && !loading && (
-            <div className="mb-6 rounded-xl border bg-slate-50 p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <div className="text-sm font-medium text-slate-900">Ready to plan?</div>
-                  <div className="text-sm text-slate-600">We’ll generate a day-by-day plan using your preferences.</div>
-                </div>
-                <button onClick={generate} className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700">
-                  Generate itinerary
-                </button>
+      {/* main */}
+      <div className="mx-auto max-w-6xl px-4 py-6">
+        {!plan && !loading && (
+          <div className="mb-6 rounded-xl border bg-slate-50 p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="text-sm font-medium text-slate-900">Ready to plan?</div>
+                <div className="text-sm text-slate-600">We’ll generate a day-by-day plan using your preferences.</div>
               </div>
+              <button
+                onClick={generate}
+                className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700"
+              >
+                Generate itinerary
+              </button>
             </div>
-          )}
+          </div>
+        )}
 
-          {loading && (
-            <div className="flex items-center justify-center py-16">
-              <Spinner label="Planning your days…" />
-            </div>
-          )}
+        {loading && (
+          <div className="flex items-center justify-center py-16">
+            <Spinner label="Planning your days…" />
+          </div>
+        )}
 
-          {err && (
-            <div className="my-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{err}</div>
-          )}
+        {err && <div className="my-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{err}</div>}
 
-          {plan && !loading && (
-            <>
-              {/* Enriched days with Google data */}
-              <div className="mt-6 space-y-10">
-                {plan.days.map((day, di) => {
-                  const dayStops = (day.activities || []).map(a => a.place || {}).filter(p => typeof p.lat === 'number' && typeof p.lng === 'number')
-                  const dayMap = staticMapForDay(dayStops as { lat?: number; lng?: number }[])
-                  return (
-                    <section key={di} className="rounded-xl border bg-white">
-                      <div className="flex items-center justify-between gap-3 border-b px-4 py-3">
-                        <div className="text-base font-semibold text-slate-900">Day {di + 1}</div>
-                        {dayMap && (
-                          <img src={dayMap} alt={`Day ${di + 1} map`} className="hidden md:block h-28 w-auto rounded-md border" />
-                        )}
+        {plan && !loading && (
+          <div className="mt-6 space-y-10">
+            {plan.days.map((day, di) => {
+              const dayStops = (day.activities || [])
+                .map((a) => a.place || {})
+                .filter((p) => typeof p.lat === 'number' && typeof p.lng === 'number')
+              const dayMap = staticMapForDay(dayStops as { lat?: number; lng?: number }[])
+              return (
+                <section key={di} className="rounded-xl border bg-white">
+                  {/* combined header with inline summary */}
+                  <div className="flex items-center justify-between gap-3 border-b px-4 py-3">
+                    <div className="min-w-0 flex items-center gap-3">
+                      <div className="text-base font-semibold text-slate-900">Day {di + 1}</div>
+                      <div className="hidden md:block h-4 w-px bg-slate-200" />
+                      <div className="truncate text-sm text-slate-600">{summarizeDay(day, di)}</div>
+                    </div>
+                    {dayMap && (
+                      <img
+                        src={dayMap}
+                        alt={`Day ${di + 1} map`}
+                        className="hidden md:block h-28 w-auto rounded-md border"
+                      />
+                    )}
+                  </div>
+
+                  {/* activities */}
+                  <div className="divide-y">
+                    {day.activities.map((a, ai) => (
+                      <div key={ai} className="relative p-3">
+                        {/* swap icon stack */}
+                        <div className="absolute right-3 top-3 flex flex-col gap-1">
+                          <button
+                            onClick={() => swapActivity(di, ai, 'similar')}
+                            className="inline-flex items-center justify-center rounded-md border px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                            title="Swap with similar"
+                          >
+                            <Shuffle className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => swapActivity(di, ai, 'any')}
+                            className="inline-flex items-center justify-center rounded-md border px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
+                            title="Swap with any"
+                          >
+                            <RefreshCw className="h-4 w-4" />
+                          </button>
+                        </div>
+
+                        <StopCard activity={a} city={destination} />
                       </div>
-                      <div className="px-4 py-2 text-sm text-slate-700 border-b">{summarizeDay(day, di)}</div>
-                      <div className="divide-y">
-                        {day.activities.map((a, ai) => (
-                          <div key={ai} className="relative p-3">
-                            {/* Swap action (top-right) */}
-                            <div className="absolute right-3 top-3">
-                              <button
-                                onClick={() => setSwapTarget(t => (t && t.di === di && t.ai === ai ? null : { di, ai }))}
-                                className="rounded-md border px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                                aria-haspopup="menu"
-                                aria-expanded={swapTarget?.di === di && swapTarget?.ai === ai}
-                              >
-                                Swap
-                              </button>
-                              {swapTarget?.di === di && swapTarget?.ai === ai && (
-                                <div role="menu" className="absolute right-0 z-10 mt-1 w-40 overflow-hidden rounded-md border bg-white shadow-md">
-                                  <button
-                                    role="menuitem"
-                                    onClick={() => swapActivity(di, ai, 'similar')}
-                                    className="block w-full px-3 py-2 text-left text-sm hover:bg-slate-50"
-                                  >
-                                    Swap with similar
-                                  </button>
-                                  <button
-                                    role="menuitem"
-                                    onClick={() => swapActivity(di, ai, 'any')}
-                                    className="block w-full px-3 py-2 text-left text-sm hover:bg-slate-50 border-t"
-                                  >
-                                    Swap with any
-                                  </button>
-                                </div>
-                              )}
-                            </div>
-
-                            <StopCard activity={a} city={destination} />
-                          </div>
-                        ))}
-                      </div>
-                    </section>
-                  )
-                })}
-              </div>
-            </>
-          )}
-        </div>
-        {/* The aside with map is now removed, as map is in hero */}
+                    ))}
+                  </div>
+                </section>
+              )
+            })}
+          </div>
+        )}
       </div>
     </div>
   )
