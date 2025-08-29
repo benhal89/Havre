@@ -1,7 +1,7 @@
-// PostCSS config for Tailwind CSS v4
-// Autoprefixer is bundled in the Tailwind v4 postcss plugin.
+// postcss.config.js
 module.exports = {
   plugins: {
-    '@tailwindcss/postcss': {},
+    tailwindcss: {},
+    autoprefixer: {},
   },
 };

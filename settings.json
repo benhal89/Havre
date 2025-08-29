@@ -1,6 +1,7 @@
 {
   "css.lint.unknownAtRules": "ignore",
   "tailwindCSS.emmetCompletions": true,
+  "files.associations": { "*.css": "tailwindcss" },
   "tailwindCSS.includeLanguages": {
     "postcss": "css",
     "plaintext": "html"
