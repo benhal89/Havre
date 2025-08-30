@@ -10,6 +10,7 @@ import clsx from 'clsx'
 // import Spinner + shared types
 import Spinner from './components/Spinner'
 import type { Activity as MapActivity, DayPlan as MapDay, Itinerary as MapItinerary } from './components/types'
+import AreaDayCard, { AreaSlot } from './components/AreaDayCard'
 
 // ---------------- City hero helpers ----------------
 const CITY_HERO: Record<string, string> = {
@@ -131,6 +132,7 @@ function HeroTop({
   setWake,
   plan,
   onApply,
+  interests,
 }: {
   destination: string
   city: string
@@ -144,6 +146,7 @@ function HeroTop({
   setWake: (w: 'early' | 'standard' | 'late') => void
   plan: Itinerary | null
   onApply: () => void
+  interests: string
 }) {
   const paceLabel = { relaxed: 'Relaxed', balanced: 'Balanced', packed: 'Packed' }[pace]
   const wakeLabel = { early: 'Early bird', standard: 'Standard', late: 'Night owl' }[wake]
@@ -165,6 +168,7 @@ function HeroTop({
             <ChoiceChip icon={<span className="text-xs">⏱</span>} label={paceLabel} />
             <ChoiceChip icon={<span className="text-xs">€</span>} label={`Budget: ${budgetLabel}`} />
             <ChoiceChip icon={<span className="text-xs">☀️</span>} label={wakeLabel} />
+            {interests && <ChoiceChip icon={<span className="text-xs">⭐</span>} label={interests} />}
           </div>
         </div>
       </div>
@@ -253,57 +257,6 @@ function HeroTop({
 }
 
 // --------------- Stop card ---------------
-function StopCard({ activity, city }: { activity: MapActivity; city: string }) {
-  const name = (activity as any).place?.name || activity.title
-  const lat = activity.lat ?? (activity as any).place?.lat
-  const lng = activity.lng ?? (activity as any).place?.lng
-
-  const { data } = useGoogleDetails({ name, city, lat, lng })
-
-  const googleUrl = data?.googleUrl || googleSearchUrl(name, city)
-  const photoUrl =
-    data?.photoUrl ||
-    (lat && lng
-      ? staticMapThumb(lat, lng)
-      : `https://source.unsplash.com/640x360/?${encodeURIComponent(city + ' city')}`)
-
-  return (
-    <div className="flex gap-4 rounded-xl border bg-white p-3 hover:shadow-sm">
-      {photoUrl ? (
-        <a href={googleUrl} target="_blank" rel="noopener noreferrer" className="block shrink-0">
-          <img src={photoUrl} alt={name} className="h-28 w-40 rounded-lg object-cover" />
-        </a>
-      ) : (
-        <div className="h-28 w-40 shrink-0 rounded-lg bg-slate-100" />
-      )}
-
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2 text-xs text-slate-500">
-          <span>{activity.time || '--:--'}</span>
-          {((activity as any).address || (activity as any).place?.address) && (
-            <span className="truncate">
-              • {((activity as any).address || (activity as any).place?.address)}
-            </span>
-          )}
-        </div>
-        <a
-          href={googleUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="block truncate text-base font-semibold text-slate-900 hover:underline"
-          title={`Open on Google Maps: ${name}`}
-        >
-          {name}
-        </a>
-        {(activity as any).description && (
-          <div className="mt-1 line-clamp-2 text-sm text-slate-600">
-            {(activity as any).description}
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
 
 // --------------- Types & helpers ---------------
 type Activity = MapActivity & {
@@ -354,6 +307,76 @@ function summarizeDay(day: DayPlan, idx: number): string {
   return parts.join('') + '.'
 }
 
+// ===== Area Explorer types & helpers =====
+type SlotKey = 'cafe' | 'gallery' | 'lunch' | 'walk' | 'bar' | 'dinner'
+
+type AreaDay = {
+  areaName: string
+  areaSummary: string
+  coverUrl: string | null
+  slots: Partial<Record<SlotKey, Activity | null>>
+  stops: { lat?: number; lng?: number }[]
+}
+
+function extractNeighborhoodFromText(s?: string): string | null {
+  if (!s) return null
+  const parts = s.split(',').map((p) => p.trim())
+  if (parts.length >= 2) return parts[0]
+  return null
+}
+
+function areaNameFromDay(day: DayPlan, fallbackCity: string): string {
+  const acts = day.activities || []
+  for (const a of acts) {
+    const n1 = (a as any).neighborhood as string | undefined
+    if (n1) return n1
+    const addr = ((a as any).place?.address || (a as any).address) as string | undefined
+    const n2 = extractNeighborhoodFromText(addr)
+    if (n2) return n2
+  }
+  return fallbackCity
+}
+
+function slotForActivity(a: Activity): SlotKey | null {
+  const t = inferType(a)
+  if (t === 'cafe') return 'cafe'
+  if (t === 'gallery') return 'gallery'
+  if (t === 'restaurant') return (a.title?.toLowerCase().includes('lunch') ? 'lunch' : 'dinner')
+  if (t === 'bar') return 'bar'
+  if (t === 'park' || t === 'landmark' || t === 'other' || t === 'museum') return 'walk'
+  return null
+}
+
+function coverForArea(areaName: string, city: string): string {
+  const q = encodeURIComponent(`${areaName} ${city} street`)
+  return `https://source.unsplash.com/1200x300/?${q}`
+}
+
+function buildAreaDayFromDay(day: DayPlan, city: string): AreaDay {
+  const areaName = areaNameFromDay(day, city)
+  const summary = `Explore ${areaName} — cafés, culture and good food.`
+  const slots: Partial<Record<SlotKey, Activity | null>> = {}
+  for (const a of (day.activities || [])) {
+    const key = slotForActivity(a as Activity)
+    if (!key) continue
+    if (!slots[key]) slots[key] = a as Activity // first candidate per slot
+  }
+  const stops = (day.activities || [])
+    .map((a) => (a as any).place || {})
+    .filter((p) => typeof p.lat === 'number' && typeof p.lng === 'number') as {
+      lat?: number; lng?: number;
+    }[]
+  return {
+    areaName,
+    areaSummary: summary,
+    coverUrl: coverForArea(areaName, city),
+    slots,
+    stops,
+  }
+}
+
+// ===== AreaDayCard & PlaceBlock =====
+
 // --------------- Page ---------------
 export default function PlanPage() {
   const params = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '')
@@ -364,6 +387,8 @@ export default function PlanPage() {
   const pace = params.get('pace') || 'balanced'
   const budget = params.get('budget') || '3'
   const homeName = params.get('home_name') || ''
+  const interestsParam = (params.get('interests') || '').split(',').map(s => s.trim()).filter(Boolean)
+  const interestsLabel = interestsParam.slice(0, 3).join(', ')
 
   const [sDays, setSDays] = useState<number>(Number(params.get('days') || '3'))
   const [sPace, setSPace] = useState<'relaxed' | 'balanced' | 'packed'>(
@@ -517,6 +542,51 @@ export default function PlanPage() {
     })
   }
 
+  // Prepare Area Explorer data for external AreaDayCard
+  const areaDays = useMemo(() => {
+    if (!plan) return [] as { areaName: string; areaHero: string | null; summary: string; slots: AreaSlot[] }[]
+    return plan.days.map((day) => {
+      const a = buildAreaDayFromDay(day, destination)
+      const slotsArr: AreaSlot[] = (Object.entries(a.slots) as [SlotKey, Activity | null][])
+        .map(([key, activity]) => ({ key, activity } as unknown as AreaSlot))
+      return {
+        areaName: a.areaName,
+        areaHero: a.coverUrl,
+        summary: a.areaSummary,
+        slots: slotsArr,
+      }
+    })
+  }, [plan, destination])
+
+  // Swap handler used by AreaDayCard callbacks
+  function swapPlace({ mode, dayIdx, slotKey }: { mode: 'similar' | 'any'; dayIdx: number; slotKey: SlotKey }) {
+    if (!plan) return
+    setPlan((prev) => {
+      if (!prev) return prev
+      const next: Itinerary = JSON.parse(JSON.stringify(prev))
+      const pool: Activity[] = (next.days[dayIdx].activities || []) as Activity[]
+
+      // Determine current activity for the slot
+      const currentArea = buildAreaDayFromDay(next.days[dayIdx], destination)
+      const current = (currentArea.slots as Partial<Record<SlotKey, Activity | null>>)[slotKey] || null
+      if (!current) return next
+
+      const wanted = mode === 'similar' ? slotForActivity(current) : null
+      const filtered = pool.filter((p) => (p.title || '') !== (current.title || ''))
+      let choice: Activity | undefined
+      if (mode === 'similar' && wanted) {
+        const same = filtered.filter((p) => slotForActivity(p) === wanted)
+        if (same.length) choice = same[Math.floor(Math.random() * same.length)]
+      }
+      if (!choice && filtered.length) choice = filtered[Math.floor(Math.random() * filtered.length)]
+      if (!choice) return next
+
+      const idx = (next.days[dayIdx].activities || []).findIndex((a) => (a as Activity).title === (current as Activity).title)
+      if (idx >= 0) next.days[dayIdx].activities[idx] = choice
+      return next
+    })
+  }
+
   return (
     <div className="min-h-screen bg-white">
       {/* top header */}
@@ -576,30 +646,20 @@ export default function PlanPage() {
       {/* hero + quick adjust */}
       <div className="mx-auto max-w-6xl px-4 pt-6">
         <HeroTop
-          destination={destination}
-          city={city}
-          days={sDays}
-          setDays={(n) => {
-            setSDays(n)
-          }}
-          pace={sPace}
-          setPace={(p) => {
-            setSPace(p)
-          }}
-          budget={sBudget}
-          setBudget={(n) => {
-            setSBudget(n)
-          }}
-          wake={sWake}
-          setWake={(w) => {
-            setSWake(w)
-          }}
-          plan={plan}
-          onApply={() => {
-            updateURLWithPrefs()
-            generate()
-          }}
-        />
+  destination={destination}
+  city={city}
+  days={sDays}
+  setDays={(n) => setSDays(n)}
+  pace={sPace}
+  setPace={(p) => setSPace(p)}
+  budget={sBudget}
+  setBudget={(n) => setSBudget(n)}
+  wake={sWake}
+  setWake={(w) => setSWake(w)}
+  plan={plan}
+  onApply={() => { updateURLWithPrefs(); generate() }}
+  interests={interestsLabel}
+/>
       </div>
 
       {/* main */}
@@ -630,59 +690,18 @@ export default function PlanPage() {
         {err && <div className="my-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{err}</div>}
 
         {plan && !loading && (
-          <div className="mt-6 space-y-10">
-            {plan.days.map((day, di) => {
-              const dayStops = (day.activities || [])
-                .map((a) => a.place || {})
-                .filter((p) => typeof p.lat === 'number' && typeof p.lng === 'number')
-              const dayMap = staticMapForDay(dayStops as { lat?: number; lng?: number }[])
-              return (
-                <section key={di} className="rounded-xl border bg-white">
-                  {/* combined header with inline summary */}
-                  <div className="flex items-center justify-between gap-3 border-b px-4 py-3">
-                    <div className="min-w-0 flex items-center gap-3">
-                      <div className="text-base font-semibold text-slate-900">Day {di + 1}</div>
-                      <div className="hidden md:block h-4 w-px bg-slate-200" />
-                      <div className="truncate text-sm text-slate-600">{summarizeDay(day, di)}</div>
-                    </div>
-                    {dayMap && (
-                      <img
-                        src={dayMap}
-                        alt={`Day ${di + 1} map`}
-                        className="hidden md:block h-28 w-auto rounded-md border"
-                      />
-                    )}
-                  </div>
-
-                  {/* activities */}
-                  <div className="divide-y">
-                    {day.activities.map((a, ai) => (
-                      <div key={ai} className="relative p-3">
-                        {/* swap icon stack */}
-                        <div className="absolute right-3 top-3 flex flex-col gap-1">
-                          <button
-                            onClick={() => swapActivity(di, ai, 'similar')}
-                            className="inline-flex items-center justify-center rounded-md border px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                            title="Swap with similar"
-                          >
-                            <Shuffle className="h-4 w-4" />
-                          </button>
-                          <button
-                            onClick={() => swapActivity(di, ai, 'any')}
-                            className="inline-flex items-center justify-center rounded-md border px-2 py-1 text-xs font-medium text-slate-700 hover:bg-slate-50"
-                            title="Swap with any"
-                          >
-                            <RefreshCw className="h-4 w-4" />
-                          </button>
-                        </div>
-
-                        <StopCard activity={a} city={destination} />
-                      </div>
-                    ))}
-                  </div>
-                </section>
-              )
-            })}
+          <div className="mt-6 space-y-8">
+            {areaDays.map((d, i) => (
+              <AreaDayCard
+                key={i}
+                dayIndex={i}
+                area={{ name: d.areaName, imageUrl: d.areaHero || undefined }}
+                summary={d.summary}
+                slots={d.slots as AreaSlot[]}
+                onSwapSimilar={(dayIdx, slotKey) => swapPlace({ mode: 'similar', dayIdx, slotKey: slotKey as SlotKey })}
+                onSwapAny={(dayIdx, slotKey) => swapPlace({ mode: 'any', dayIdx, slotKey: slotKey as SlotKey })}
+              />
+            ))}
           </div>
         )}
       </div>
