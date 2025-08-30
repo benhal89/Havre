@@ -113,6 +113,7 @@ function ExploreCities() {
               className="group relative rounded-2xl overflow-hidden shadow-lg transition-transform duration-300 hover:scale-105"
               style={{ minHeight: 340 }}
             >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={c.img}
                 alt={c.name}
@@ -279,6 +280,7 @@ function Hero({
   setCityError,
   planPromptHref,
   planPrefsHref,
+  destination,
 }: {
   prompt: string
   setPrompt: (v: string) => void
@@ -304,6 +306,7 @@ function Hero({
   setCityError: (v: string) => void
   planPromptHref: string
   planPrefsHref: string
+  destination: string
 }) {
   const DAY_MIN = 2
   const DAY_MAX = 14
@@ -406,29 +409,29 @@ function Hero({
             <div className="flex flex-col sm:flex-row gap-2 sm:gap-0">
               <button
                 onClick={async () => {
-  try {
-    // fire-and-forget save (don’t block navigation)
-    fetch('/api/requests', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        city: city.trim() || destination,
-        destination,
-        days,
-        pace,
-        budget,
-        wake,
-        interests: Object.entries(selectedCats)
-          .filter(([, v]) => v)
-          .map(([k]) => k),
-        prompt,
-        source: 'landing',
-      }),
-    }).catch(() => {})
-  } finally {
-    window.location.href = planPromptHref
-  }
-}}
+                  try {
+                    // fire-and-forget save (don’t block navigation)
+                    fetch('/api/requests', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        city: (city || destination).trim(),
+                        destination,
+                        days,
+                        pace,
+                        budget,
+                        wake,
+                        interests: Object.entries(selectedCats)
+                          .filter(([, v]) => v)
+                          .map(([k]) => k),
+                        prompt,
+                        source: 'landing',
+                      }),
+                    }).catch(() => {})
+                  } finally {
+                    window.location.href = planPromptHref
+                  }
+                }}
                 className="sm:rounded-l-none rounded-b-2xl sm:rounded-b-none sm:rounded-r-2xl rounded-r-2xl bg-emerald text-white font-semibold px-10 py-6 text-xl transition hover:bg-emerald/90 focus:outline-none focus:ring-2 focus:ring-emerald border border-white/40 shadow"
                 style={{ fontFamily: 'Tenor Sans, var(--font-sans), sans-serif' }}
               >
@@ -438,7 +441,7 @@ function Hero({
           </div>
         </GlassCard>
 
-        /* Toggle preferences */
+        {/* Toggle preferences */}
         <div className="mt-4">
           <button
             onClick={() => setShowPrefs(!showPrefs)}
@@ -502,8 +505,8 @@ function Hero({
                 </label>
                 <input
                   type="range"
-                  min={DAY_MIN}
-                  max={DAY_MAX}
+                  min={2}
+                  max={14}
                   value={days}
                   onChange={(e) => setDays(Number(e.target.value))}
                   className="w-full accent-emerald"
@@ -515,11 +518,15 @@ function Hero({
               <div>
                 <div className="text-sm font-medium">Day Pace</div>
                 <div className="mt-2 flex gap-2 flex-wrap">
-                  {paceOptions.map((o) => (
+                  {[
+                    { key: 'relaxed', label: 'Relaxed', hint: 'Fewer stops' },
+                    { key: 'balanced', label: 'Balanced', hint: 'Default' },
+                    { key: 'packed', label: 'Packed', hint: 'Many stops' },
+                  ].map((o) => (
                     <button
                       key={o.key}
                       type="button"
-                      onClick={() => setPace(o.key)}
+                      onClick={() => setPace(o.key as any)}
                       className={clsx(
                         'inline-flex flex-col items-start rounded-lg border px-3 py-2 text-sm',
                         pace === o.key
@@ -539,20 +546,20 @@ function Hero({
               <div>
                 <div className="text-sm font-medium">Travel Style</div>
                 <div className="mt-2 flex gap-2 flex-wrap">
-                  {travelStyleOptions.map((o) => (
+                  {(['hidden', 'mixed', 'iconic'] as const).map((k) => (
                     <button
-                      key={o.key}
+                      key={k}
                       type="button"
-                      onClick={() => setStyle(o.key)}
+                      onClick={() => setStyle(k)}
                       className={clsx(
                         'rounded-lg border px-3 py-2 text-sm',
-                        style === o.key
+                        style === k
                           ? 'bg-white text-black border-black hover:bg-white hover:text-black hover:border-black shadow-sm'
                           : 'bg-transparent text-slate-900 border-slate-300 hover:bg-slate-50'
                       )}
-                      aria-pressed={style === o.key}
+                      aria-pressed={style === k}
                     >
-                      {o.label}
+                      {k === 'hidden' ? 'Hidden Gems' : k === 'mixed' ? 'Mixed' : 'Iconic Sights'}
                     </button>
                   ))}
                 </div>
@@ -562,20 +569,20 @@ function Hero({
               <div>
                 <div className="text-sm font-medium">Spending Style</div>
                 <div className="mt-2 grid grid-cols-5 gap-2 max-sm:grid-cols-3">
-                  {spendingOptions.map((o) => (
+                  {[1, 2, 3, 4, 5].map((v) => (
                     <button
-                      key={o.value}
+                      key={v}
                       type="button"
-                      onClick={() => setBudget(o.value)}
+                      onClick={() => setBudget(v)}
                       className={clsx(
                         'rounded-lg border px-3 py-2 text-sm',
-                        budget === o.value
+                        budget === v
                           ? 'bg-white text-black border-black hover:bg-white hover:text-black hover:border-black shadow-sm'
                           : 'bg-transparent text-slate-900 border-slate-300 hover:bg-slate-50'
                       )}
-                      aria-pressed={budget === o.value}
+                      aria-pressed={budget === v}
                     >
-                      {o.label}
+                      {['Shoestring','Budget','Comfort','Premium','Luxury'][v-1]}
                     </button>
                   ))}
                 </div>
@@ -585,20 +592,20 @@ function Hero({
               <div>
                 <div className="text-sm font-medium">Daily Rhythm</div>
                 <div className="mt-2 flex gap-2 flex-wrap">
-                  {rhythmOptions.map((o) => (
+                  {(['early', 'standard', 'late'] as const).map((k) => (
                     <button
-                      key={o.key}
+                      key={k}
                       type="button"
-                      onClick={() => setWake(o.key)}
+                      onClick={() => setWake(k)}
                       className={clsx(
                         'rounded-lg border px-3 py-2 text-sm',
-                        wake === o.key
+                        wake === k
                           ? 'bg-white text-black border-black hover:bg-white hover:text-black hover:border-black shadow-sm'
                           : 'bg-transparent text-slate-900 border-slate-300 hover:bg-slate-50'
                       )}
-                      aria-pressed={wake === o.key}
+                      aria-pressed={wake === k}
                     >
-                      {o.label}
+                      {k === 'early' ? 'Early Bird' : k === 'standard' ? 'Standard' : 'Night Owl'}
                     </button>
                   ))}
                 </div>
@@ -608,97 +615,33 @@ function Hero({
               <div>
                 <div className="text-sm font-medium">Interests</div>
                 <div className="space-y-4 mt-2">
-                  <div>
-                    <div className="text-sm font-semibold">🍴 Food &amp; Drink</div>
-                    <div className="mt-2 grid grid-cols-3 gap-2">
-                      {interestsFoodDrink.map((i) => (
-                        <button
-                          key={i.key}
-                          type="button"
-                          onClick={() =>
-                            setSelectedCats((s) => ({ ...s, [i.key]: !s[i.key] }))
-                          }
-                          className={clsx(
-                            'rounded-full border px-3 py-1.5 text-sm',
-                            selectedCats[i.key]
-                              ? 'bg-white text-black border-black hover:bg-white hover:text-black hover:border-black shadow-sm'
-                              : 'bg-transparent text-slate-900 border-slate-300 hover:bg-slate-50'
-                          )}
-                        >
-                          {i.label}
-                        </button>
-                      ))}
+                  {[
+                    { title: '🍴 Food & Drink', keys: ['cafes','restaurants','bars'] },
+                    { title: '🎨 Culture & Art', keys: ['museums','galleries','architecture'] },
+                    { title: '🎶 Entertainment', keys: ['live_music','parties','nightlife'] },
+                    { title: '🌳 Outdoors', keys: ['parks','walks','sports'] },
+                  ].map((group) => (
+                    <div key={group.title}>
+                      <div className="text-sm font-semibold">{group.title}</div>
+                      <div className="mt-2 grid grid-cols-3 gap-2">
+                        {group.keys.map((key) => (
+                          <button
+                            key={key}
+                            type="button"
+                            onClick={() => setSelectedCats((s) => ({ ...s, [key]: !s[key] }))}
+                            className={clsx(
+                              'rounded-full border px-3 py-1.5 text-sm',
+                              selectedCats[key]
+                                ? 'bg-white text-black border-black hover:bg-white hover:text-black hover:border-black shadow-sm'
+                                : 'bg-transparent text-slate-900 border-slate-300 hover:bg-slate-50'
+                            )}
+                          >
+                            {key.replaceAll('_',' ')}
+                          </button>
+                        ))}
+                      </div>
                     </div>
-                  </div>
-
-                  <div>
-                    <div className="text-sm font-semibold">🎨 Culture &amp; Art</div>
-                    <div className="mt-2 grid grid-cols-3 gap-2">
-                      {interestsCultureArt.map((i) => (
-                        <button
-                          key={i.key}
-                          type="button"
-                          onClick={() =>
-                            setSelectedCats((s) => ({ ...s, [i.key]: !s[i.key] }))
-                          }
-                          className={clsx(
-                            'rounded-full border px-3 py-1.5 text-sm',
-                            selectedCats[i.key]
-                              ? 'bg-white text-black border-black hover:bg-white hover:text-black hover:border-black shadow-sm'
-                              : 'bg-transparent text-slate-900 border-slate-300 hover:bg-slate-50'
-                          )}
-                        >
-                          {i.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="text-sm font-semibold">🎶 Entertainment</div>
-                    <div className="mt-2 grid grid-cols-3 gap-2">
-                      {interestsEntertainment.map((i) => (
-                        <button
-                          key={i.key}
-                          type="button"
-                          onClick={() =>
-                            setSelectedCats((s) => ({ ...s, [i.key]: !s[i.key] }))
-                          }
-                          className={clsx(
-                            'rounded-full border px-3 py-1.5 text-sm',
-                            selectedCats[i.key]
-                              ? 'bg-white text-black border-black hover:bg-white hover:text-black hover:border-black shadow-sm'
-                              : 'bg-transparent text-slate-900 border-slate-300 hover:bg-slate-50'
-                          )}
-                        >
-                          {i.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <div className="text-sm font-semibold">🌳 Outdoors</div>
-                    <div className="mt-2 grid grid-cols-3 gap-2">
-                      {interestsOutdoors.map((i) => (
-                        <button
-                          key={i.key}
-                          type="button"
-                          onClick={() =>
-                            setSelectedCats((s) => ({ ...s, [i.key]: !s[i.key] }))
-                          }
-                          className={clsx(
-                            'rounded-full border px-3 py-1.5 text-sm',
-                            selectedCats[i.key]
-                              ? 'bg-white text-black border-black hover:bg-white hover:text-black hover:border-black shadow-sm'
-                              : 'bg-transparent text-slate-900 border-slate-300 hover:bg-slate-50'
-                          )}
-                        >
-                          {i.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
+                  ))}
                 </div>
               </div>
 
@@ -725,6 +668,215 @@ function Hero({
             </motion.div>
           )}
         </AnimatePresence>
+      </div>
+    </section>
+  )
+}
+
+/* ---------------- Explore Places (homepage section) -------- */
+
+type Place = {
+  id: string
+  name: string
+  description: string | null
+  address: string | null
+  city: string
+  country: string
+  lat: number
+  lng: number
+  website: string | null
+  google_place_id: string | null
+  types: string[]
+  themes: string[]
+  rating?: number | null
+  price_level?: number | null
+}
+
+function googleLinkFor(p: Pick<Place, 'name' | 'city' | 'lat' | 'lng'>) {
+  const hasCoords = typeof p.lat === 'number' && typeof p.lng === 'number'
+  return hasCoords
+    ? `https://www.google.com/maps?q=${p.lat},${p.lng}`
+    : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${p.name} ${p.city}`)}`
+}
+
+function PlaceCard({ place }: { place: Place }) {
+  const [photo, setPhoto] = useState<string | null>(null)
+  useEffect(() => {
+    let on = true
+    const u = new URL('/api/google/place-details', window.location.origin)
+    u.searchParams.set('name', place.name)
+    u.searchParams.set('city', place.city)
+    u.searchParams.set('lat', String(place.lat))
+    u.searchParams.set('lng', String(place.lng))
+    fetch(u.toString())
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (on) setPhoto(d?.photoUrl || null)
+      })
+      .catch(() => {
+        if (on) setPhoto(null)
+      })
+    return () => {
+      on = false
+    }
+  }, [place.name, place.city, place.lat, place.lng])
+
+  const href = googleLinkFor(place)
+
+  return (
+    <a
+      href={href}
+      target="_blank"
+      rel="noreferrer"
+      className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm hover:shadow-md transition"
+    >
+      <div className="aspect-[16/10] w-full bg-slate-100">
+        {photo ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={photo} alt={place.name} className="h-full w-full object-cover" loading="lazy" />
+        ) : (
+          <div className="flex h-full w-full items-center justify-center text-slate-400 text-sm">No image</div>
+        )}
+      </div>
+      <div className="p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="truncate text-lg font-semibold text-slate-900">{place.name}</div>
+            {place.address && <div className="mt-1 truncate text-sm text-slate-600">{place.address}</div>}
+          </div>
+          {typeof place.rating === 'number' && (
+            <div className="shrink-0 rounded-full bg-emerald-50 px-2 py-1 text-xs font-medium text-emerald-700">
+              {place.rating.toFixed(1)}★
+            </div>
+          )}
+        </div>
+        {place.description && <p className="mt-2 line-clamp-2 text-sm text-slate-700">{place.description}</p>}
+        <div className="mt-3 flex flex-wrap gap-2 text-xs">
+          {place.types?.slice(0, 3).map((t) => (
+            <span key={t} className="rounded-full border border-slate-200 px-2 py-1 text-slate-700">
+              {t.replaceAll('_', ' ')}
+            </span>
+          ))}
+          {place.themes?.slice(0, 2).map((t) => (
+            <span key={t} className="rounded-full bg-slate-50 px-2 py-1 text-slate-700">
+              {t.replaceAll('_', ' ')}
+            </span>
+          ))}
+        </div>
+      </div>
+    </a>
+  )
+}
+
+function ExplorePlacesSection() {
+  const [city, setCity] = useState('Paris')
+  const [types, setTypes] = useState<string[]>([])
+  const [themes, setThemes] = useState<string[]>([])
+  const [loading, setLoading] = useState(false)
+  const [places, setPlaces] = useState<Place[]>([])
+
+  const typeOptions = ['restaurant', 'cafe', 'bar', 'museum', 'gallery', 'park', 'landmark', 'wine_bar', 'bakery', 'club']
+  const themeOptions = ['date_night', 'good_for_solo', 'family_friendly', 'nightlife', 'design', 'architecture', 'photo_spot', 'rainy_day', 'sunset']
+
+  function toggle(list: string[], value: string) {
+    return list.includes(value) ? list.filter((x) => x !== value) : [...list, value]
+  }
+
+  async function load() {
+    setLoading(true)
+    const p = new URLSearchParams()
+    if (city) p.set('city', city)
+    if (types.length) p.set('types', types.join(','))
+    if (themes.length) p.set('themes', themes.join(','))
+    p.set('limit', '24')
+    const res = await fetch(`/api/places?${p.toString()}`)
+    const json = await res.json()
+    setPlaces(json?.places || [])
+    setLoading(false)
+  }
+
+  useEffect(() => {
+    load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  useEffect(() => {
+    load()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [city, types, themes])
+
+  return (
+    <section className="py-16">
+      <div className="mx-auto max-w-6xl px-4">
+        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <h2 className="text-3xl font-serif font-semibold text-midnight">Explore places</h2>
+            <p className="text-slate-600">Pick a city and refine by place type and vibe.</p>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <input
+              value={city}
+              onChange={(e) => setCity(e.target.value)}
+              placeholder="City (e.g. Paris)"
+              className="h-10 w-44 rounded-lg border border-slate-300 px-3 text-sm focus:border-emerald focus:outline-none focus:ring-2 focus:ring-emerald/30"
+            />
+            <button onClick={load} className="h-10 rounded-lg border border-slate-300 px-3 text-sm hover:bg-slate-50">
+              Refresh
+            </button>
+          </div>
+        </div>
+
+        <div className="mb-6 grid gap-3 sm:grid-cols-2">
+          <fieldset>
+            <legend className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500">Type</legend>
+            <div className="flex flex-wrap gap-2">
+              {typeOptions.map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setTypes((cur) => toggle(cur, t))}
+                  className={clsx(
+                    'rounded-full border px-3 py-1.5 text-sm',
+                    types.includes(t) ? 'border-black bg-white text-black shadow-sm' : 'border-slate-300 text-slate-800 hover:bg-slate-50'
+                  )}
+                >
+                  {t.replaceAll('_', ' ')}
+                </button>
+              ))}
+            </div>
+          </fieldset>
+
+          <fieldset>
+            <legend className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500">Vibe</legend>
+            <div className="flex flex-wrap gap-2">
+              {themeOptions.map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => setThemes((cur) => toggle(cur, t))}
+                  className={clsx(
+                    'rounded-full border px-3 py-1.5 text-sm',
+                    themes.includes(t) ? 'border-black bg-white text-black shadow-sm' : 'border-slate-300 text-slate-800 hover:bg-slate-50'
+                  )}
+                >
+                  {t.replaceAll('_', ' ')}
+                </button>
+              ))}
+            </div>
+          </fieldset>
+        </div>
+
+        {loading ? (
+          <div className="py-10 text-center text-slate-600">Loading places…</div>
+        ) : places.length === 0 ? (
+          <div className="py-10 text-center text-slate-600">No places match your filters.</div>
+        ) : (
+          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            {places.map((p) => (
+              <PlaceCard key={p.id} place={p} />
+            ))}
+          </div>
+        )}
       </div>
     </section>
   )
@@ -856,7 +1008,11 @@ export default function Page() {
         setCityError={setCityError}
         planPromptHref={planPromptHref}
         planPrefsHref={planPrefsHref}
+        destination={destination}
       />
+
+      {/* NEW: Explore places from Supabase */}
+      <ExplorePlacesSection />
 
       <section className="mx-auto max-w-6xl px-4 py-16">
         <Inspiration />

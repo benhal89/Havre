@@ -1,53 +1,38 @@
+// src/app/api/requests/route.ts
 import { NextResponse } from 'next/server'
-import { createClient } from '@supabase/supabase-js'
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL as string
-const supabaseKey = (process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY) as string
-const supabase = createClient(supabaseUrl, supabaseKey, { auth: { persistSession: false } })
+import { createClient } from '@/lib/supabase/server'
 
 export async function POST(req: Request) {
   try {
     const body = await req.json()
-    const {
-      prompt,
-      destination,
-      budget,
-      pace,
-      days,
-      wake,
-      interests,
-      user_id,
-      style,
-      city,
-      country,
-      source,
-    } = body || {}
+    const supabase = createClient()
+
+    const payload = {
+      prompt: body?.prompt ?? null,
+      destination: body?.destination ?? null,
+      budget: body?.budget != null ? String(body.budget) : null,
+      pace: body?.pace ?? null,
+      days: typeof body?.days === 'number' ? body.days : null,
+      wake: body?.wake ?? null,
+      interests: Array.isArray(body?.interests) ? body.interests : null,
+      style: body?.style ?? null,
+      city: body?.city ?? null,
+      country: body?.country ?? null,
+      user_id: body?.user_id ?? null,
+    }
 
     const { data, error } = await supabase
       .from('requests')
-      .insert({
-        prompt: prompt ?? null,
-        destination: destination ?? null,
-        budget: String(budget ?? ''),
-        pace: String(pace ?? ''),
-        days: typeof days === 'number' ? days : null,
-        wake: String(wake ?? ''),
-        interests: Array.isArray(interests) ? interests : null,
-        user_id: user_id ?? null,
-        style: style ?? null,
-        city: city ?? null,
-        country: country ?? null,
-        // optionally keep the source of request
-      })
-      .select()
+      .insert(payload)
+      .select('id')
       .single()
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 })
-    }
-
-    return NextResponse.json({ ok: true, request: data })
-  } catch (e: any) {
-    return NextResponse.json({ error: e?.message || 'Failed to save request' }, { status: 500 })
+    if (error) throw error
+    return NextResponse.json({ id: data.id })
+  } catch (err: any) {
+    return NextResponse.json(
+      { error: err?.message ?? 'Insert failed' },
+      { status: 500 },
+    )
   }
 }
