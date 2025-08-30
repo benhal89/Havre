@@ -693,6 +693,7 @@ export default function PlanPage() {
               <AreaDayCard
                 key={i}
                 dayIndex={i}
+                city={city} 
                 area={{ name: d.areaName, imageUrl: d.areaHero || undefined }}
                 summary={d.summary}
                 slots={d.slots as AreaSlot[]}

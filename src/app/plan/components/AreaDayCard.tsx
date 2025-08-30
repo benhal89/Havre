@@ -1,127 +1,88 @@
-'use client'
-
+// src/app/plan/components/AreaDayCard.tsx
 import React from 'react'
-import {
-  MapPin,
-  ExternalLink,
-  Shuffle,
-  Wand2,
-  Image as ImageIcon,
-} from 'lucide-react'
-import clsx from 'clsx'
-import PlacePill from './PlacePill'
+import { Shuffle, MapPin, Image as ImageIcon } from 'lucide-react'
+import { getAreaMeta } from '@/lib/areas'
 
-/** Lightweight place type for a single slot */
-export type PlaceLite = {
-  id?: string
-  name: string
+export type AreaSlotKey =
+  | 'cafe'
+  | 'gallery'
+  | 'lunch'
+  | 'walk'
+  | 'bar'
+  | 'dinner'
+  | 'museum'
+
+export type SlotActivity = {
+  title?: string
   description?: string
   photoUrl?: string | null
-  googleUrl?: string | null
-  address?: string | null
-  tags?: string[]
-  rating?: number
-  priceLevel?: number
+  lat?: number
+  lng?: number
+  mapUrl?: string
 }
 
-/** One “slot” inside a day (e.g., Café, Gallery, Lunch, Walk, Bar, Dinner) */
 export type AreaSlot = {
-  key:
-    | 'cafe'
-    | 'gallery'
-    | 'lunch'
-    | 'walk'
-    | 'bar'
-    | 'dinner'
-    | 'breakfast'
-    | 'activity'
-    | string
-  label: string
-  place?: PlaceLite
-}
-
-/** Props for the AreaDayCard */
-export type AreaDayCardProps = {
-  dayIndex: number
-  area: {
-    name: string
-    imageUrl?: string | null // hero/cover for the area
-  }
-  /** 1–2 sentence area blurb (vibe/what to expect) */
-  summary?: string
-  /** Category slots for the day (Café, Gallery, Lunch…) */
-  slots: AreaSlot[]
-  /** Called when user requests a swap (same-type) */
-  onSwapSimilar?: (dayIndex: number, slotKey: AreaSlot['key']) => void
-  /** Called when user requests a swap (any-type) */
-  onSwapAny?: (dayIndex: number, slotKey: AreaSlot['key']) => void
-  /** Optional: className passthrough */
-  className?: string
+  key: AreaSlotKey
+  activity: SlotActivity | null
 }
 
 export default function AreaDayCard({
   dayIndex,
+  city,
   area,
   summary,
   slots,
   onSwapSimilar,
   onSwapAny,
-  className,
-}: AreaDayCardProps) {
-  const hero = area.imageUrl || null
+}: {
+  dayIndex: number
+  city: string
+  area: { name: string; imageUrl?: string }
+  summary: string
+  slots: AreaSlot[]
+  onSwapSimilar: (dayIdx: number, slotKey: AreaSlotKey) => void
+  onSwapAny: (dayIdx: number, slotKey: AreaSlotKey) => void
+}) {
+  const meta = getAreaMeta(city, area.name)
+  const cover = area.imageUrl || meta.cover
+  const vibe = meta.description || summary
+  const sights = meta.sights
 
   return (
-    <section
-      className={clsx(
-        'overflow-hidden rounded-2xl border bg-white shadow-sm',
-        className,
-      )}
-      aria-labelledby={`day-${dayIndex}-title`}
-    >
-      {/* Header / Area hero */}
-      <div className="relative">
+    <section className="rounded-2xl border bg-white overflow-hidden shadow-sm">
+      {/* Header with neighborhood cover */}
+      <div className="relative h-40 sm:h-48 md:h-56">
         <div
-          className={clsx(
-            'h-40 w-full bg-slate-100 md:h-52',
-            hero ? 'bg-cover bg-center' : 'grid place-items-center',
-          )}
-          style={hero ? { backgroundImage: `url(${hero})` } : undefined}
-        >
-          {!hero && (
-            <div className="flex items-center gap-2 text-slate-500">
-              <ImageIcon className="h-5 w-5" />
-              <span>No area image</span>
-            </div>
-          )}
-        </div>
-
-        {/* Title + summary overlay (bottom) */}
-        <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent px-4 pb-3 pt-10">
-          <div className="flex flex-col items-start gap-1 md:flex-row md:items-end md:justify-between">
-            <h3
-              id={`day-${dayIndex}-title`}
-              className="text-lg font-semibold text-white drop-shadow"
-            >
+          className="absolute inset-0 bg-center bg-cover"
+          style={{ backgroundImage: `url(${cover})` }}
+        />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
+        <div className="absolute inset-x-0 bottom-0 flex items-end justify-between p-4 sm:p-5">
+          <div>
+            <div className="text-white text-base font-semibold drop-shadow">
               Day {dayIndex + 1}: {area.name}
-            </h3>
-            {summary && (
-              <p className="max-w-2xl text-sm text-white/90 md:text-right drop-shadow">
-                {summary}
-              </p>
-            )}
+            </div>
+            <p className="text-white/90 text-sm drop-shadow max-w-3xl">
+              {vibe}
+              {sights?.length ? (
+                <span className="ml-1 opacity-90">
+                  • Top sights: {sights.slice(0, 3).join(', ')}
+                </span>
+              ) : null}
+            </p>
           </div>
         </div>
       </div>
 
-      {/* Slots grid */}
-      <div className="grid gap-4 p-4 sm:grid-cols-2 lg:grid-cols-3">
+      {/* Category slots */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 p-4">
         {slots.map((slot) => (
-          <SlotCard
+          <PlaceBlock
             key={slot.key}
-            dayIndex={dayIndex}
-            slot={slot}
-            onSwapSimilar={onSwapSimilar}
-            onSwapAny={onSwapAny}
+            label={labelFor(slot.key)}
+            activity={slot.activity}
+            onSwapSimilar={() => onSwapSimilar(dayIndex, slot.key)}
+            onSwapAny={() => onSwapAny(dayIndex, slot.key)}
           />
         ))}
       </div>
@@ -129,91 +90,90 @@ export default function AreaDayCard({
   )
 }
 
-/* ----------------------- Slot Card ------------------------ */
+function labelFor(k: AreaSlotKey) {
+  const map: Record<AreaSlotKey, string> = {
+    cafe: 'Café',
+    gallery: 'Gallery',
+    lunch: 'Lunch',
+    walk: 'Walk / Sight',
+    bar: 'Bar',
+    dinner: 'Dinner',
+    museum: 'Museum',
+  }
+  return map[k] || k
+}
 
-function SlotCard({
-  dayIndex,
-  slot,
+function PlaceBlock({
+  label,
+  activity,
   onSwapSimilar,
   onSwapAny,
 }: {
-  dayIndex: number
-  slot: AreaSlot
-  onSwapSimilar?: (dayIndex: number, slotKey: AreaSlot['key']) => void
-  onSwapAny?: (dayIndex: number, slotKey: AreaSlot['key']) => void
+  label: string
+  activity: SlotActivity | null
+  onSwapSimilar: () => void
+  onSwapAny: () => void
 }) {
-  const p = slot.place
-
   return (
-    <div className="flex items-stretch gap-3 rounded-xl border p-3">
-      {/* Photo */}
-      <div className="relative h-24 w-28 shrink-0 overflow-hidden rounded-md bg-slate-100">
-        {p?.photoUrl ? (
-          <img
-            src={p.photoUrl}
-            alt={p.name}
-            className="h-full w-full object-cover"
-            loading="lazy"
-          />
-        ) : (
-          <div className="grid h-full w-full place-items-center text-slate-400">
-            <ImageIcon className="h-6 w-6" />
-          </div>
-        )}
+    <div className="rounded-xl border p-3">
+      <div className="mb-2 flex items-center justify-between">
+        <div className="text-xs font-semibold text-slate-600">{label}</div>
+        <div className="flex gap-1">
+          <button
+            onClick={onSwapSimilar}
+            className="inline-flex items-center gap-1 rounded border px-2 py-1 text-xs hover:bg-slate-50"
+            title="Swap with similar"
+          >
+            <Shuffle className="h-3.5 w-3.5" /> Similar
+          </button>
+          <button
+            onClick={onSwapAny}
+            className="inline-flex items-center gap-1 rounded border px-2 py-1 text-xs hover:bg-slate-50"
+            title="Swap with anything"
+          >
+            <Shuffle className="h-3.5 w-3.5" /> Anything
+          </button>
+        </div>
       </div>
 
-      {/* Content */}
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center justify-between gap-2">
-          <div className="text-xs font-medium uppercase tracking-wide text-slate-500">
-            {slot.label}
+      {activity ? (
+        <div className="flex gap-3">
+          <div className="h-16 w-20 flex-none overflow-hidden rounded bg-slate-100 flex items-center justify-center">
+            {activity.photoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={activity.photoUrl} alt="" className="h-full w-full object-cover" />
+            ) : (
+              <ImageIcon className="h-5 w-5 text-slate-400" />
+            )}
           </div>
-
-          {/* Swap buttons: “similar” / “anything” stacked */}
-          <div className="flex flex-col items-end gap-1">
-            <button
-              type="button"
-              onClick={() => onSwapSimilar?.(dayIndex, slot.key)}
-              className="inline-flex items-center gap-1.5 rounded border px-2 py-1 text-xs font-medium hover:bg-slate-50"
-              title="Swap with similar"
-            >
-              <Shuffle className="h-3.5 w-3.5" />
-              Similar
-            </button>
-            <button
-              type="button"
-              onClick={() => onSwapAny?.(dayIndex, slot.key)}
-              className="inline-flex items-center gap-1.5 rounded border px-2 py-1 text-xs font-medium hover:bg-slate-50"
-              title="Swap with anything"
-            >
-              <Wand2 className="h-3.5 w-3.5" />
-              Anything
-            </button>
+          <div className="min-w-0">
+            <div className="truncate text-sm font-medium text-slate-900">
+              {activity.title || 'Untitled'}
+            </div>
+            {activity.description && (
+              <div className="line-clamp-2 text-sm text-slate-600">
+                {activity.description}
+              </div>
+            )}
+            {activity.lat && activity.lng ? (
+              <a
+                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
+                  activity.title || '',
+                )}`}
+                target="_blank"
+                rel="noreferrer"
+                className="mt-1 inline-flex items-center gap-1 text-xs text-sky-700 hover:underline"
+              >
+                <MapPin className="h-3.5 w-3.5" /> View on Google Maps
+              </a>
+            ) : null}
           </div>
         </div>
-
-        {/* Pill with name/tags/rating/price that links to Google */}
-        <div className="mt-1">
-          {p ? (
-            <PlacePill
-              name={p.name}
-              googleUrl={p.googleUrl || undefined}
-              tags={p.tags}
-              rating={p.rating}
-              priceLevel={p.priceLevel}
-            />
-          ) : (
-            <span className="text-slate-400 text-sm">Not selected yet</span>
-          )}
+      ) : (
+        <div className="flex h-24 items-center justify-center rounded bg-slate-50 text-sm text-slate-500">
+          Not selected yet
         </div>
-
-        {/* Short blurb (kept compact under the pill) */}
-        {p?.description && (
-          <div className="mt-1 line-clamp-2 text-xs text-slate-600">
-            {p.description}
-          </div>
-        )}
-      </div>
+      )}
     </div>
   )
 }

@@ -1,104 +1,48 @@
-// Utilities for mapping neighborhoods → canonical areas, plus friendly metadata.
-import type { Area } from './types'
+// src/lib/areas.ts
+// Lightweight neighborhood metadata (extend over time).
 
-type CanonicalArea = {
-  name: string
-  /** Any alternate neighborhood names that should map to this area */
-  aliases?: string[]
-  /** Optional representative centroid for the area */
-  center?: [number, number]
-  /** Optional friendly cover image */
-  image?: string
+const PARIS: Record<
+  string,
+  { cover: string; description: string; sights: string[] }
+> = {
+  'Le Marais': {
+    cover:
+      'https://images.unsplash.com/photo-1543357480-c60d40007a4e?auto=format&fit=crop&w=1800&q=80',
+    description: 'Historic lanes, galleries and chic cafés.',
+    sights: ['Place des Vosges', 'Musée Picasso', 'Rue des Rosiers'],
+  },
+  'Saint-Germain-des-Prés': {
+    cover:
+      'https://images.unsplash.com/photo-1491553895911-0055eca6402d?auto=format&fit=crop&w=1800&q=80',
+    description: 'Left Bank salons, bookstores and timeless cafés.',
+    sights: ['Café de Flore', 'Église Saint-Germain', 'Boulevard Saint-Germain'],
+  },
+  Montmartre: {
+    cover:
+      'https://images.unsplash.com/photo-1543349689-9a4d426bee8c?auto=format&fit=crop&w=1800&q=80',
+    description: 'Bohemian hills, artists’ ateliers and sweeping views.',
+    sights: ['Sacré-Cœur', 'Place du Tertre', 'Rue Lepic'],
+  },
 }
 
-const PARIS: CanonicalArea[] = [
-  {
-    name: 'Le Marais',
-    aliases: ['Marais', '3rd arrondissement', '4th arrondissement', 'Le Haut Marais'],
-    center: [48.859, 2.361],
-    image:
-      'https://images.unsplash.com/photo-1542038784456-1ea8e935640e?auto=format&fit=crop&w=1600&q=80',
-  },
-  {
-    name: 'Saint-Germain',
-    aliases: ['Saint-Germain-des-Prés', '6th arrondissement'],
-    center: [48.853, 2.334],
-    image:
-      'https://images.unsplash.com/photo-1467269204594-9661b134dd2b?auto=format&fit=crop&w=1600&q=80',
-  },
-  {
-    name: 'Canal Saint-Martin',
-    aliases: ['10th arrondissement', 'Canal Saint Martin'],
-    center: [48.872, 2.364],
-    image:
-      'https://images.unsplash.com/photo-1471623432079-b009d30b6729?auto=format&fit=crop&w=1600&q=80',
-  },
-  {
-    name: 'Montmartre',
-    aliases: ['18th arrondissement'],
-    center: [48.8867, 2.3431],
-    image:
-      'https://images.unsplash.com/photo-1464790719320-516ecd75af6c?auto=format&fit=crop&w=1600&q=80',
-  },
-]
-
-const CANONICAL_BY_CITY: Record<string, CanonicalArea[]> = {
-  paris: PARIS,
-  // Add more cities as you expand
-}
-
-export function areaFromNeighborhood(city: string, neighborhood?: string | null): Area | null {
-  if (!city) return null
-  const list = CANONICAL_BY_CITY[city.toLowerCase()]
-  if (!list || !neighborhood) return null
-
-  const n = neighborhood.toLowerCase().trim()
-  const hit = list.find(
-    (a) =>
-      a.name.toLowerCase() === n ||
-      (a.aliases || []).some((al) => al.toLowerCase() === n)
-  )
-  if (!hit) return null
+export function getAreaMeta(city: string, areaName: string) {
+  const c = city.toLowerCase()
+  if (c === 'paris') {
+    const exact = PARIS[areaName]
+    if (exact) return exact
+    const alt = PARIS[normalize(areaName)]
+    if (alt) return alt
+  }
+  // Fallback: generic Unsplash keyword
   return {
-    name: hit.name,
-    center: hit.center ?? [0, 0],
-    image: hit.image,
+    cover: `https://source.unsplash.com/1600x400/?${encodeURIComponent(
+      `${areaName} ${city} street`,
+    )}`,
+    description: `Explore ${areaName} — cafés, culture and good food.`,
+    sights: [] as string[],
   }
 }
 
-export function bestAreaForCoords(city: string, lat: number, lng: number): Area | null {
-  const list = CANONICAL_BY_CITY[city.toLowerCase()]
-  if (!list || !list.length) return null
-  let best = list[0]
-  let bestD = Number.POSITIVE_INFINITY
-  for (const a of list) {
-    const d = a.center ? distanceKm(lat, lng, a.center[0], a.center[1]) : 999
-    if (d < bestD) {
-      best = a
-      bestD = d
-    }
-  }
-  return { name: best.name, center: best.center ?? [lat, lng], image: best.image }
+function normalize(s: string) {
+  return s.replace(/-/g, '-').replace(/\s+/g, ' ').trim()
 }
-
-export function areaInfo(city: string, name: string): Area | null {
-  const list = CANONICAL_BY_CITY[city.toLowerCase()]
-  if (!list) return null
-  const hit = list.find((a) => a.name.toLowerCase() === name.toLowerCase())
-  if (!hit) return null
-  return { name: hit.name, center: hit.center ?? [0, 0], image: hit.image }
-}
-
-// --- small geo util
-export function distanceKm(aLat: number, aLng: number, bLat: number, bLng: number): number {
-  const R = 6371
-  const dLat = toRad(bLat - aLat)
-  const dLng = toRad(bLng - aLng)
-  const la1 = toRad(aLat)
-  const la2 = toRad(bLat)
-  const x =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.sin(dLng / 2) * Math.sin(dLng / 2) * Math.cos(la1) * Math.cos(la2)
-  return 2 * R * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x))
-}
-const toRad = (d: number) => (d * Math.PI) / 180
