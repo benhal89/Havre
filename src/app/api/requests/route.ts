@@ -1,11 +1,11 @@
 // src/app/api/requests/route.ts
 import { NextResponse } from 'next/server'
-import { createClient } from '@/lib/supabase/server'
+import { createServerClient } from '@/lib/supabase/server'
 
 export async function POST(req: Request) {
   try {
     const body = await req.json()
-    const supabase = createClient()
+  const supabase = createServerClient()
 
     const payload = {
       prompt: body?.prompt ?? null,

@@ -1,33 +1,29 @@
+// src/lib/supabase/server.ts
+import { createClient, type SupabaseClient } from '@supabase/supabase-js'
 
 /**
- * Server-side Supabase client (no cookies needed for read-only endpoints).
- * Reads standard env vars you already use elsewhere.
+ * Anonymous server-side client (safe for read/select & RLS-protected inserts).
+ * Does not use cookies.
  */
-export function createServerClient() {
+export function createServerClient(): SupabaseClient {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-
   if (!url || !anon) {
     throw new Error('Missing NEXT_PUBLIC_SUPABASE_URL or NEXT_PUBLIC_SUPABASE_ANON_KEY')
   }
-
   return createClient(url, anon, {
     auth: { persistSession: false, autoRefreshToken: false },
   })
 }
-// src/lib/supabaseServer.ts
-import { createClient } from '@supabase/supabase-js'
 
 /**
- * Lightweight server-side Supabase client that does NOT touch Next.js cookies.
- * Use for public, read-mostly endpoints (e.g., itinerary building).
+ * Alias kept for existing imports in API routes.
  */
-export function supabaseService() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL!
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY! // anon is fine for selects & open inserts with RLS
-  return createClient(url, key, { auth: { persistSession: false } })
+export function supabaseService(): SupabaseClient {
+  return createServerClient()
 }
 
+// ---------- Shared types ----------
 export type PlaceRow = {
   id: string
   name: string
