@@ -6,7 +6,13 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "doctor:types": "tsc --noEmit",
+    "doctor:lint": "next lint || true",
+    "doctor:ts-prune": "ts-prune -p tsconfig.json",
+    "doctor:depcheck": "depcheck",
+    "doctor:knip": "knip --strict",
+    "doctor": "npm run doctor:types && npm run doctor:lint && npm run doctor:ts-prune && npm run doctor:depcheck && npm run doctor:knip"
   },
   "dependencies": {
     "@supabase/ssr": "^0.7.0",
@@ -23,14 +29,17 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3",
     "@tailwindcss/postcss": "^4.1.12",
-    "@types/node": "^20",
+    "@types/node": "^20.19.11",
     "@types/react": "^19.1.11",
     "@types/react-dom": "^19.1.8",
     "autoprefixer": "^10.4.21",
+    "depcheck": "^1.4.7",
     "eslint": "^9",
     "eslint-config-next": "15.5.0",
+    "knip": "^5.63.0",
     "postcss": "^8.5.6",
     "tailwindcss": "^3.4.13",
-    "typescript": "^5"
+    "ts-prune": "^0.10.3",
+    "typescript": "^5.9.2"
   }
 }
