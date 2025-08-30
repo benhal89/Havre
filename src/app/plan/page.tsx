@@ -6,6 +6,7 @@ import Link from 'next/link'
 // Maps script is loaded globally in layout
 import { RefreshCw, Mail, Share2, Download, MapPin, Shuffle } from 'lucide-react'
 import clsx from 'clsx'
+import { useSearchParams } from 'next/navigation'
 
 // import Spinner + shared types
 import Spinner from './components/Spinner'
@@ -424,44 +425,108 @@ function buildAreaDayFromDay(day: DayPlan, city: string): AreaDay {
 
 // --------------- Page ---------------
 export default function PlanPage() {
-  const params = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '')
-  const destination = params.get('d') || 'Paris'
-  const city = params.get('city') || destination
-  const autostart = params.get('autostart') === '1'
-  const hours = params.get('hours') || 'balanced'
-  const pace = params.get('pace') || 'balanced'
-  const budget = params.get('budget') || '3'
-  const homeName = params.get('home_name') || ''
-  const interestsParam = (params.get('interests') || '').split(',').map(s => s.trim()).filter(Boolean)
-  const interestsLabel = interestsParam.slice(0, 3).join(', ')
+  // Optional autostart if autostart=1 is present in the URL
+  useEffect(() => {
+    const autostart = (search?.get('autostart') === '1');
+    if (autostart) {
+      persistRequest();
+      if (mode === 'areas') generateAreas();
+      else generate();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  // Helper to persist the current request to /api/requests
+  async function persistRequest() {
+    try {
+      await fetch('/api/requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          city,
+          destination: city,
+          days,
+          pace,
+          budget,
+          wake: sWake,
+          interests: interestsParam,
+          source: 'plan_page',
+        }),
+      })
+    } catch {
+      // non-blocking; ignore errors
+    }
+  }
+  // ---- URL params (must be defined before first use) ----
+  const search = useSearchParams();
+  const city = (search?.get('city') || search?.get('d') || 'Paris').trim();
+  const sDays = Math.max(1, Number(search?.get('days') || '3'));
+  const sBudget = Math.min(5, Math.max(1, Number(search?.get('budget') || '3')));
+  const sPace = (search?.get('pace') as 'relaxed'|'balanced'|'packed') || 'balanced';
+  const interestsParam = (search?.get('interests') || '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  // State for days, pace, budget (with setters)
+  const [days, setDays] = useState<number>(sDays);
+  const [pace, setPace] = useState<'relaxed' | 'balanced' | 'packed'>(sPace);
+  const [budget, setBudget] = useState<number>(sBudget);
+  // interestsLabel for HeroTop
+  const interestsLabel = interestsParam.slice(0, 3).join(', ');
+  const [error, setError] = useState<string | null>(null);
+  // --- AreaDayGroups state for new API structure ---
+  const [areaDayGroups, setAreaDayGroups] = useState<any[][]>([])
 
-  const [sDays, setSDays] = useState<number>(Number(params.get('days') || '3'))
-  const [sPace, setSPace] = useState<'relaxed' | 'balanced' | 'packed'>(
-    ((params.get('pace') as any) || 'balanced') as 'relaxed' | 'balanced' | 'packed',
-  )
-  const [sBudget, setSBudget] = useState<number>(Number(params.get('budget') || '3'))
-  const [sWake, setSWake] = useState<'early' | 'standard' | 'late'>(
-    ((params.get('wake') as any) || 'standard') as 'early' | 'standard' | 'late',
-  )
-
-  const [plan, setPlan] = useState<Itinerary | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [err, setErr] = useState<string | null>(null)
+  // Fetch areaDayGroups from new API when city, days, budget, pace, or interests change
+  useEffect(() => {
+    async function run() {
+      try {
+        setLoading(true);
+        await loadAreaDays({
+          city,
+          days: sDays,
+          budget: sBudget,
+          pace: sPace,
+          interests: interestsParam,
+        });
+      } finally {
+        setLoading(false);
+      }
+    }
+    run();
+    // Re-run if URL params change
+  }, [city, sDays, sBudget, sPace, interestsParam.join(',')]);
+  // Remove all params-based variables and use only the new ones above
+  const [sWake, setSWake] = useState<'early' | 'standard' | 'late'>('standard');
+  const [plan, setPlan] = useState<Itinerary | null>(null);
+  const [loading, setLoading] = useState(false);
+  // (removed duplicate error/setError declaration)
 
   // --- Mode & area-mode results (keeps itinerary as default)
-  const initialMode = (params.get('mode') === 'areas' ? 'areas' : 'itinerary') as 'areas' | 'itinerary'
-  const [mode, setMode] = useState<'areas' | 'itinerary'>(initialMode)
-  const [areaModeDays, setAreaModeDays] = useState<Array<{
-    areaName: string
-    areaHero: string | null
-    summary: string
-    slots: AreaSlot[]
-  }>>([])
+  const initialMode = (search?.get('mode') === 'areas' ? 'areas' : 'itinerary') as 'areas' | 'itinerary';
+  const [mode, setMode] = useState<'areas' | 'itinerary'>(initialMode);
+  // Helper to load area days from API
+  async function loadAreaDays(params: {
+    city: string;
+    days: number;
+    budget: number;
+    pace: 'relaxed' | 'balanced' | 'packed';
+    interests: string[];
+  }) {
+    const u = new URL('/api/area/suggest', window.location.origin);
+    u.searchParams.set('city', params.city);
+    u.searchParams.set('days', String(params.days));
+    u.searchParams.set('budget', String(params.budget));
+    u.searchParams.set('pace', params.pace);
+    if (params.interests.length) u.searchParams.set('interests', params.interests.join(','));
+    const r = await fetch(u.toString());
+    if (!r.ok) throw new Error(await r.text());
+    const j = await r.json();
+    setAreaDayGroups(j.dayGroups);
+  }
 
   function updateURLWithPrefs() {
     const u = new URL(window.location.href)
     const sp = u.searchParams
-    sp.set('d', destination)
     sp.set('city', city)
     sp.set('pace', sPace)
     sp.set('budget', String(sBudget))
@@ -470,11 +535,7 @@ export default function PlanPage() {
     window.history.replaceState({}, '', u.toString())
   }
 
-useEffect(() => {
-  if (!autostart || loading) return
-  if (mode === 'areas') { void generateAreas() } else { void generate() }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-}, [autostart, mode])
+  // Remove autostart logic (not needed with new param-driven approach)
 
   // Generate AREAS view (for now, it reuses generate() to fill plan and derive areaDays)
   async function generateAreas() {
@@ -483,39 +544,31 @@ useEffect(() => {
 
   // Generate the full itinerary (server call), then we derive areaDays from it
   async function generate() {
-    const interestsParam = params.get('interests') || ''
-    const interestsArr = interestsParam
-      .split(',')
-      .map((s) => s.trim().toLowerCase())
-      .filter(Boolean)
-
-    setLoading(true)
-    setErr(null)
-    setPlan(null)
+    // This function is now a stub or can be refactored to use city, sDays, sBudget, sPace, sWake, interestsParam
+    setLoading(true);
+    setError(null);
+    setPlan(null);
     try {
       const res = await fetch('/api/itinerary', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          destination,
-          city: params.get('city') || undefined,
+          city,
           budget: String(sBudget),
           pace: sPace,
           days: sDays,
           wake: sWake,
-          interests: interestsArr,
-          prompt: params.get('q') || '',
+          interests: interestsParam,
         }),
-      })
-      const ctype = res.headers.get('content-type') || ''
+      });
+      const ctype = res.headers.get('content-type') || '';
       if (!ctype.includes('application/json')) {
-        const text = await res.text()
-        throw new Error(`API returned non-JSON (${res.status}). ${text.slice(0, 120)}`)
+        const text = await res.text();
+        throw new Error(`API returned non-JSON (${res.status}). ${text.slice(0, 120)}`);
       }
-      const j = await res.json()
-      if (!res.ok) throw new Error(j?.error || `Itinerary failed (${res.status})`)
-      if (!j?.days || !Array.isArray(j.days)) throw new Error('No days in response.')
-
+      const j = await res.json();
+      if (!res.ok) throw new Error(j?.error || `Itinerary failed (${res.status})`);
+      if (!j?.days || !Array.isArray(j.days)) throw new Error('No days in response.');
       const normalized: Itinerary = {
         ...(j as any),
         days: (j.days as any[]).map((d: any) => ({
@@ -533,42 +586,42 @@ useEffect(() => {
               : {}),
           })),
         })),
-      }
-      setPlan(normalized)
+      };
+      setPlan(normalized);
     } catch (e: any) {
-      setErr(e?.message || 'Failed to generate itinerary.')
+      setError(e?.message || 'Failed to generate itinerary.');
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   }
 
   const mailHref = useMemo(() => {
-    const subject = encodeURIComponent(`Havre plan: ${destination}`)
+    const subject = encodeURIComponent(`Havre plan: ${city}`);
     const body = encodeURIComponent(
       plan
         ? plan.days
             .map((d: DayPlan, i: number) => `Day ${i + 1}\n` + d.activities.map((a: Activity) => `  - ${a.time || '--:--'} ${a.title}`).join('\n'))
             .join('\n\n')
         : 'No plan yet.',
-    )
-    return `mailto:?subject=${subject}&body=${body}`
-  }, [plan, destination])
+    );
+    return `mailto:?subject=${subject}&body=${body}`;
+  }, [plan, city]);
 
   function copyLink() {
     if (typeof window !== 'undefined') navigator.clipboard?.writeText(window.location.href)
   }
 
   function exportText() {
-    if (!plan) return
+    if (!plan) return;
     const text = plan.days
       .map((d: DayPlan, i: number) => `Day ${i + 1}\n` + d.activities.map((a: Activity) => `  - ${a.time || '--:--'} ${a.title}`).join('\n'))
-      .join('\n\n')
-    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' })
-    const a = document.createElement('a')
-    a.href = URL.createObjectURL(blob)
-    a.download = `havre-${destination.toLowerCase().replace(/\s+/g, '-')}.txt`
-    a.click()
-    URL.revokeObjectURL(a.href)
+      .join('\n\n');
+    const blob = new Blob([text], { type: 'text/plain;charset=utf-8' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `havre-${city.toLowerCase().replace(/\s+/g, '-')}.txt`;
+    a.click();
+    URL.revokeObjectURL(a.href);
   }
 
   function pickAlternative(current: Activity, mode: 'similar' | 'any'): Activity | null {
@@ -606,19 +659,19 @@ useEffect(() => {
 
   // Prepare Area Explorer data for external AreaDayCard
   const areaDays = useMemo(() => {
-    if (!plan) return [] as { areaName: string; areaHero: string | null; summary: string; slots: AreaSlot[] }[]
+    if (!plan) return [] as { areaName: string; areaHero: string | null; summary: string; slots: AreaSlot[] }[];
     return plan.days.map((day) => {
-      const a = buildAreaDayFromDay(day, destination)
+      const a = buildAreaDayFromDay(day, city);
       const slotsArr: AreaSlot[] = (Object.entries(a.slots) as [SlotKey, Activity | null][])
-        .map(([key, activity]) => ({ key, activity } as unknown as AreaSlot))
+        .map(([key, activity]) => ({ key, activity } as unknown as AreaSlot));
       return {
         areaName: a.areaName,
         areaHero: a.coverUrl,
         summary: a.areaSummary,
         slots: slotsArr,
-      }
-    })
-  }, [plan, destination])
+      };
+    });
+  }, [plan, city]);
 
   // Swap handler used by AreaDayCard callbacks
   function swapPlace({ mode, dayIdx, slotKey }: { mode: 'similar' | 'any'; dayIdx: number; slotKey: SlotKey }) {
@@ -629,7 +682,7 @@ useEffect(() => {
       const pool: Activity[] = (next.days[dayIdx].activities || []) as Activity[]
 
       // Determine current activity for the slot
-      const currentArea = buildAreaDayFromDay(next.days[dayIdx], destination)
+  const currentArea = buildAreaDayFromDay(next.days[dayIdx], city)
       const current = (currentArea.slots as Partial<Record<SlotKey, Activity | null>>)[slotKey] || null
       if (!current) return next
 
@@ -655,21 +708,22 @@ useEffect(() => {
       {/* hero + quick adjust */}
       <div className="mx-auto max-w-6xl px-4 pt-6">
         <HeroTop
-  destination={destination}
+  destination={city}
   city={city}
-  days={sDays}
-  setDays={(n) => setSDays(n)}
-  pace={sPace}
-  setPace={(p) => setSPace(p)}
-  budget={sBudget}
-  setBudget={(n) => setSBudget(n)}
+  days={days}
+  setDays={setDays}
+  pace={pace}
+  setPace={setPace}
+  budget={budget}
+  setBudget={setBudget}
   wake={sWake}
-  setWake={(w) => setSWake(w)}
+  setWake={setSWake}
   plan={plan}
   onApply={() => {
-    updateURLWithPrefs()
-    if (mode === 'areas') generateAreas()
-    else generate()
+    updateURLWithPrefs();
+    persistRequest();
+    if (mode === 'areas') generateAreas();
+    else generate();
   }}
   interests={interestsLabel}
   actions={{
@@ -737,25 +791,35 @@ useEffect(() => {
           </div>
         )}
 
-        {err && <div className="my-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{err}</div>}
+  {error && (
+    <div className="my-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
+      {error}
+    </div>
+  )}
 
-        {!loading && (
+        {!loading && areaDayGroups.length > 0 && (
           <div className="mt-6 space-y-8">
-            {areaDays.map((d, i) => (
-              <AreaDayCard
-                key={i}
-                dayIndex={i}
-                city={city}
-                area={{ name: d.areaName, imageUrl: d.areaHero || undefined }}
-                summary={d.summary}
-                slots={d.slots as AreaSlot[]}
-                onSwapSimilar={(dayIdx, slotKey) =>
-                  swapPlace({ mode: 'similar', dayIdx, slotKey: slotKey as any })
-                }
-                onSwapAny={(dayIdx, slotKey) =>
-                  swapPlace({ mode: 'any', dayIdx, slotKey: slotKey as any })
-                }
-              />
+            {areaDayGroups.map((group, dayIdx) => (
+              <div key={dayIdx} className="space-y-6">
+                {group.map((day: any, k: number) => (
+                  <AreaDayCard
+                    key={`${dayIdx}-${k}`}
+                    dayIndex={dayIdx}
+                    area={{ name: day.area.name, imageUrl: day.area.imageUrl }}
+                    summary={day.summary}
+                    slots={[
+                      { key: 'cafe', label: 'Cafés', place: day.slots.cafes?.[0] || null },
+                      { key: 'lunch', label: 'Food & Drink', place: day.slots.food_drink?.[0] || null },
+                      { key: 'museum', label: 'Museums', place: day.slots.museums?.[0] || null },
+                      { key: 'gallery', label: 'Galleries', place: day.slots.galleries?.[0] || null },
+                      { key: 'walk', label: 'Outdoors', place: day.slots.outdoors?.[0] || null },
+                      { key: 'bar', label: 'Nightlife', place: day.slots.nightlife?.[0] || null },
+                    ]}
+                    onSwapSimilar={(dIdx, slotKey) => null}
+                    onSwapAny={(dIdx, slotKey) => null}
+                  />
+                ))}
+              </div>
             ))}
           </div>
         )}

@@ -1,34 +1,37 @@
-// src/app/plan/components/AreaDayCard.tsx
-import React from 'react'
-import { Shuffle, MapPin, Image as ImageIcon } from 'lucide-react'
-import { getAreaMeta } from '@/lib/areas'
+'use client'
+
+import { Shuffle, Sparkles, MapPin } from 'lucide-react'
+import clsx from 'clsx'
+import PlacePill from './PlacePill'
 
 export type AreaSlotKey =
   | 'cafe'
-  | 'gallery'
   | 'lunch'
   | 'walk'
+  | 'gallery'
+  | 'museum'
   | 'bar'
   | 'dinner'
-  | 'museum'
-
-export type SlotActivity = {
-  title?: string
-  description?: string
-  photoUrl?: string | null
-  lat?: number
-  lng?: number
-  mapUrl?: string
-}
+  | 'attraction'
 
 export type AreaSlot = {
   key: AreaSlotKey
-  activity: SlotActivity | null
+  label: string
+  place: {
+    id: string
+    name: string
+    description?: string | null
+    city: string
+    lat?: number | null
+    lng?: number | null
+    types?: string[] | null
+    themes?: string[] | null
+    google_url?: string | null
+  } | null
 }
 
 export default function AreaDayCard({
   dayIndex,
-  city,
   area,
   summary,
   slots,
@@ -36,144 +39,100 @@ export default function AreaDayCard({
   onSwapAny,
 }: {
   dayIndex: number
-  city: string
-  area: { name: string; imageUrl?: string }
-  summary: string
+  area: { name: string; imageUrl?: string | null; mapUrl?: string | null }
+  summary?: string
   slots: AreaSlot[]
-  onSwapSimilar: (dayIdx: number, slotKey: AreaSlotKey) => void
-  onSwapAny: (dayIdx: number, slotKey: AreaSlotKey) => void
+  onSwapSimilar?: (dayIdx: number, slotKey: AreaSlotKey) => void
+  onSwapAny?: (dayIdx: number, slotKey: AreaSlotKey) => void
 }) {
-  const meta = getAreaMeta(city, area.name)
-  const cover = area.imageUrl || meta.cover
-  const vibe = meta.description || summary
-  const sights = meta.sights
-
   return (
-    <section className="rounded-2xl border bg-white overflow-hidden shadow-sm">
-      {/* Header with neighborhood cover */}
-      <div className="relative h-40 sm:h-48 md:h-56">
-        <div
-          className="absolute inset-0 bg-center bg-cover"
-          style={{ backgroundImage: `url(${cover})` }}
-        />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
-        <div className="absolute inset-x-0 bottom-0 flex items-end justify-between p-4 sm:p-5">
+    <section className="rounded-2xl border bg-white shadow-sm overflow-hidden">
+      {/* Header with background */}
+      <div
+        className={clsx(
+          'relative h-40 w-full',
+          !area.imageUrl && 'bg-gradient-to-b from-slate-200 to-slate-300',
+        )}
+      >
+        {area.imageUrl && (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={area.imageUrl}
+            alt={area.name}
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/20 to-transparent" />
+
+        <div className="relative z-10 flex h-full items-end justify-between px-5 pb-3">
           <div>
-            <div className="text-white text-base font-semibold drop-shadow">
-              Day {dayIndex + 1}: {area.name}
-            </div>
-            <p className="text-white/90 text-sm drop-shadow max-w-3xl">
-              {vibe}
-              {sights?.length ? (
-                <span className="ml-1 opacity-90">
-                  • Top sights: {sights.slice(0, 3).join(', ')}
-                </span>
-              ) : null}
-            </p>
+            <div className="text-white font-semibold">Day {dayIndex + 1}: {area.name}</div>
+            {summary && <div className="text-white/85 text-sm">{summary}</div>}
           </div>
+
+          {/* Optional small static map thumbnail */}
+          {area.mapUrl && (
+            <a
+              href={area.mapUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="hidden sm:block overflow-hidden rounded-lg border border-white/50"
+              title="Open area in Google Maps"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={area.mapUrl} alt={`${area.name} map`} className="h-20 w-28 object-cover" />
+            </a>
+          )}
         </div>
       </div>
 
-      {/* Category slots */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 p-4">
-        {slots.map((slot) => (
-          <PlaceBlock
-            key={slot.key}
-            label={labelFor(slot.key)}
-            activity={slot.activity}
-            onSwapSimilar={() => onSwapSimilar(dayIndex, slot.key)}
-            onSwapAny={() => onSwapAny(dayIndex, slot.key)}
-          />
-        ))}
+      {/* Slots */}
+      <div className="p-4 md:p-6">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+          {slots.map((s) => (
+            <div key={s.key} className="rounded-xl border border-slate-200 p-3">
+              <div className="mb-2 flex items-center justify-between">
+                <div className="text-xs font-semibold text-slate-600">{s.label}</div>
+                <div className="flex flex-col gap-1">
+                  <button
+                    className="inline-flex items-center justify-center rounded-full border px-2 py-1 text-[11px] text-slate-700 hover:bg-slate-50"
+                    onClick={() => onSwapSimilar?.(dayIndex, s.key)}
+                    title="Swap with a similar place"
+                  >
+                    <Shuffle className="h-3.5 w-3.5" />
+                    <span className="ml-1">Similar</span>
+                  </button>
+                  <button
+                    className="inline-flex items-center justify-center rounded-full border px-2 py-1 text-[11px] text-slate-700 hover:bg-slate-50"
+                    onClick={() => onSwapAny?.(dayIndex, s.key)}
+                    title="Swap with anything"
+                  >
+                    <Sparkles className="h-3.5 w-3.5" />
+                    <span className="ml-1">Anything</span>
+                  </button>
+                </div>
+              </div>
+
+              {s.place ? (
+                <PlacePill
+                  place={{
+                    ...s.place,
+                    lat: s.place.lat ?? undefined,
+                    lng: s.place.lng ?? undefined,
+                    google_url: s.place.google_url ?? undefined,
+                  }}
+                />
+              ) : (
+                <div className="grid grid-cols-[72px_1fr] gap-3 rounded-xl border border-dashed border-slate-300 p-3 text-slate-500">
+                  <div className="flex h-[72px] w-[72px] items-center justify-center rounded-lg bg-slate-50">
+                  </div>
+                  <div className="self-center text-sm">Not selected yet</div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
       </div>
     </section>
-  )
-}
-
-function labelFor(k: AreaSlotKey) {
-  const map: Record<AreaSlotKey, string> = {
-    cafe: 'Café',
-    gallery: 'Gallery',
-    lunch: 'Lunch',
-    walk: 'Walk / Sight',
-    bar: 'Bar',
-    dinner: 'Dinner',
-    museum: 'Museum',
-  }
-  return map[k] || k
-}
-
-function PlaceBlock({
-  label,
-  activity,
-  onSwapSimilar,
-  onSwapAny,
-}: {
-  label: string
-  activity: SlotActivity | null
-  onSwapSimilar: () => void
-  onSwapAny: () => void
-}) {
-  return (
-    <div className="rounded-xl border p-3">
-      <div className="mb-2 flex items-center justify-between">
-        <div className="text-xs font-semibold text-slate-600">{label}</div>
-        <div className="flex gap-1">
-          <button
-            onClick={onSwapSimilar}
-            className="inline-flex items-center gap-1 rounded border px-2 py-1 text-xs hover:bg-slate-50"
-            title="Swap with similar"
-          >
-            <Shuffle className="h-3.5 w-3.5" /> Similar
-          </button>
-          <button
-            onClick={onSwapAny}
-            className="inline-flex items-center gap-1 rounded border px-2 py-1 text-xs hover:bg-slate-50"
-            title="Swap with anything"
-          >
-            <Shuffle className="h-3.5 w-3.5" /> Anything
-          </button>
-        </div>
-      </div>
-
-      {activity ? (
-        <div className="flex gap-3">
-          <div className="h-16 w-20 flex-none overflow-hidden rounded bg-slate-100 flex items-center justify-center">
-            {activity.photoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={activity.photoUrl} alt="" className="h-full w-full object-cover" />
-            ) : (
-              <ImageIcon className="h-5 w-5 text-slate-400" />
-            )}
-          </div>
-          <div className="min-w-0">
-            <div className="truncate text-sm font-medium text-slate-900">
-              {activity.title || 'Untitled'}
-            </div>
-            {activity.description && (
-              <div className="line-clamp-2 text-sm text-slate-600">
-                {activity.description}
-              </div>
-            )}
-            {activity.lat && activity.lng ? (
-              <a
-                href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(
-                  activity.title || '',
-                )}`}
-                target="_blank"
-                rel="noreferrer"
-                className="mt-1 inline-flex items-center gap-1 text-xs text-sky-700 hover:underline"
-              >
-                <MapPin className="h-3.5 w-3.5" /> View on Google Maps
-              </a>
-            ) : null}
-          </div>
-        </div>
-      ) : (
-        <div className="flex h-24 items-center justify-center rounded bg-slate-50 text-sm text-slate-500">
-          Not selected yet
-        </div>
-      )}
-    </div>
   )
 }

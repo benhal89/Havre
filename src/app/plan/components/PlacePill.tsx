@@ -1,106 +1,108 @@
-
-
 'use client'
 
-import React from 'react'
+import { useEffect, useState } from 'react'
 import clsx from 'clsx'
-import { ExternalLink, Star } from 'lucide-react'
 
-export type PlacePillProps = {
-  /** Display name of the place */
+type PlaceLite = {
+  id?: string
   name: string
-  /** Link to Google Maps (preferred) or website */
-  googleUrl?: string | null
-  /** Small list of tags like ['cafe', 'natural_wine'] */
+  city?: string
+  lat?: number
+  lng?: number
+  google_url?: string | null
+  website?: string | null
+  price_level?: number | null
   tags?: string[] | null
-  /** 0–5 rating (e.g., 4.5) */
-  rating?: number | null
-  /** 1–5 price level */
-  priceLevel?: number | null
-  /** Optional extra classes */
+}
+
+type Props = {
+  place?: PlaceLite | null
+  fallbackCity?: string
   className?: string
-  /** If true, shrink paddings/margins further */
-  compact?: boolean
 }
 
-function euros(n?: number | null) {
-  if (!n || n <= 0) return ''
-  return '€'.repeat(Math.max(1, Math.min(5, Math.round(n))))
+type G = {
+  placeId: string | null
+  photoUrl: string | null
+  googleUrl: string | null
+  summary: string | null
+  website: string | null
 }
 
-/**
- * Compact chip-like place display
- * - Left: name + (optional tags)
- * - Right: micro rating + price
- * Entire pill is clickable to Google (if url provided).
- */
-export default function PlacePill({
-  name,
-  googleUrl,
-  tags,
-  rating,
-  priceLevel,
-  className,
-  compact,
-}: PlacePillProps) {
-  const inner = (
-    <div
-      className={clsx(
-        'inline-flex max-w-full items-center gap-2 rounded-full border bg-white/90 px-3 py-1 text-xs text-slate-800 shadow-sm ring-1 ring-slate-200',
-        compact && 'px-2 py-0.5 text-[11px]',
-        className,
-      )}
-    >
-      {/* Left: name + tags */}
-      <div className="min-w-0 flex items-center gap-2">
-        <span className="truncate font-medium">{name}</span>
-        {Array.isArray(tags) && tags.length > 0 && (
-          <span className="hidden sm:inline-flex max-w-[12rem] items-center gap-1 truncate text-slate-500">
-            <span aria-hidden>•</span>
-            <span className="truncate">{tags.join(', ')}</span>
-          </span>
-        )}
-      </div>
+export default function PlacePill({ place, fallbackCity, className }: Props) {
+  const [details, setDetails] = useState<G | null>(null)
 
-      <div className="flex-1"></div>
+  useEffect(() => {
+    let alive = true
+    async function run() {
+      if (!place?.name) { setDetails(null); return }
+      const u = new URL('/api/google/place-details', window.location.origin)
+      u.searchParams.set('name', place.name)
+      if (place.city || fallbackCity) u.searchParams.set('city', String(place.city || fallbackCity))
+      if (typeof place.lat === 'number') u.searchParams.set('lat', String(place.lat))
+      if (typeof place.lng === 'number') u.searchParams.set('lng', String(place.lng))
+      try {
+        const r = await fetch(u.toString())
+        const j = (await r.json()) as G
+        if (alive) setDetails(j)
+      } catch {
+        if (alive) setDetails(null)
+      }
+    }
+    run()
+    return () => { alive = false }
+  }, [place?.name, place?.city, place?.lat, place?.lng, fallbackCity])
 
-      {/* Right: rating + price */}
-      <div className="flex items-center gap-2 shrink-0">
-        {typeof rating === 'number' && rating > 0 && (
-          <span className="inline-flex items-center gap-1 text-[11px] text-slate-700">
-            <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
-            {rating.toFixed(1)}
-          </span>
-        )}
-        {Number(priceLevel ?? 0) > 0 && (
-          <span className="text-[11px] tabular-nums text-slate-700" title={`Price level: ${priceLevel}`}>
-            {euros(priceLevel)}
-          </span>
-        )}
-        {googleUrl && (
-          <ExternalLink
-            className="h-3.5 w-3.5 text-slate-500"
-            aria-hidden
-          />
-        )}
-      </div>
-    </div>
-  )
-
-  if (googleUrl) {
+  if (!place) {
     return (
-      <a
-        href={googleUrl}
-        target="_blank"
-        rel="noreferrer"
-        className="inline-block max-w-full"
-        aria-label={`${name} — open on Google Maps`}
-        title="Open on Google Maps"
-      >
-        {inner}
-      </a>
+      <div className={clsx('rounded-xl border bg-white p-3 text-sm text-slate-500', className)}>
+        (No suggestion yet)
+      </div>
     )
   }
 
-  return inner
+  const googleHref =
+    place.google_url ||
+    details?.googleUrl ||
+    `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${place.name} ${place.city || fallbackCity || ''}`.trim())}`
+
+  const price =
+    typeof place.price_level === 'number' && place.price_level > 0
+      ? '€'.repeat(Math.min(5, place.price_level))
+      : null
+
+  return (
+    <a
+      href={googleHref}
+      target="_blank"
+      rel="noreferrer"
+      className={clsx(
+        'group flex items-center gap-3 rounded-xl border bg-white p-3 hover:shadow-sm transition',
+        className,
+      )}
+    >
+      {/* thumb */}
+      <div className="h-12 w-12 overflow-hidden rounded-lg bg-slate-100 flex-shrink-0">
+        {details?.photoUrl ? (
+          <img
+            src={details.photoUrl}
+            alt={place.name}
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          <div className="h-full w-full grid place-items-center text-slate-400 text-xs">photo</div>
+        )}
+      </div>
+
+      {/* text */}
+      <div className="min-w-0">
+        <div className="truncate text-sm font-medium text-slate-900 group-hover:underline">
+          {place.name}
+        </div>
+        <div className="mt-0.5 text-xs text-slate-500 truncate">
+          {[price, (place.tags || []).slice(0, 2).join(' · ')].filter(Boolean).join(' · ')}
+        </div>
+      </div>
+    </a>
+  )
 }
