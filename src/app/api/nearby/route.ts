@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server'
-import { supabaseServer } from '@/lib/supabase/server'
+import { supabaseService } from '@/lib/supabase/server'
 
 export const dynamic = 'force-dynamic'
 
@@ -51,7 +51,7 @@ export async function GET(req: Request){
       else{ if(t==='food') typeTags.add('restaurant'); if(t==='coffee') typeTags.add('cafe'); if(t==='nightlife'){typeTags.add('bar'); typeTags.add('club')} if(t==='wine') typeTags.add('wine_bar') }
     }
 
-    const supabase=await supabaseServer()
+  const supabase = supabaseService()
     let q=supabase.from('places').select('*').eq('status','active').limit(500)
     if(typeTags.size)    q=q.overlaps('types',Array.from(typeTags))
     if(themeTags.size)   q=q.overlaps('themes',Array.from(themeTags))

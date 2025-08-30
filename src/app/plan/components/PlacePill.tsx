@@ -72,7 +72,7 @@ export default function PlacePill({
             {rating.toFixed(1)}
           </span>
         )}
-        {priceLevel > 0 && (
+        {Number(priceLevel ?? 0) > 0 && (
           <span className="text-[11px] tabular-nums text-slate-700" title={`Price level: ${priceLevel}`}>
             {euros(priceLevel)}
           </span>
