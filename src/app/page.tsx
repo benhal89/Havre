@@ -730,14 +730,20 @@ function PlaceCard({ place }: { place: Place }) {
       rel="noreferrer"
       className="group relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm hover:shadow-md transition"
     >
-      <div className="aspect-[16/10] w-full bg-slate-100">
-        {photo ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={photo} alt={place.name} className="h-full w-full object-cover" loading="lazy" />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center text-slate-400 text-sm">No image</div>
-        )}
-      </div>
+<div className="aspect-[16/10] w-full bg-slate-100">
+  {photo ? (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={photo} alt={place.name} className="h-full w-full object-cover" loading="lazy" />
+  ) : (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src="https://images.unsplash.com/photo-1502602898657-3e91760cbb34?auto=format&fit=crop&w=1200&q=70"
+      alt={place.name}
+      className="h-full w-full object-cover"
+      loading="lazy"
+    />
+  )}
+</div>
       <div className="p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
@@ -768,115 +774,271 @@ function PlaceCard({ place }: { place: Place }) {
   )
 }
 
-function ExplorePlacesSection() {
+// --- Explore places section (drop-in) ---
+function Pill({
+  active,
+  onClick,
+  children,
+}: {
+  active: boolean
+  onClick: () => void
+  children: React.ReactNode
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={clsx(
+        'rounded-full border px-3 py-1.5 text-sm transition',
+        active ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-800 border-slate-300 hover:bg-slate-50'
+      )}
+    >
+      {children}
+    </button>
+  )
+}
+
+type UIPlace = {
+  id: string
+  name: string
+  description: string | null
+  address: string | null
+  city: string
+  country: string
+  lat: number
+  lng: number
+  types: string[] | null
+  themes: string[] | null
+  google_url: string
+}
+
+function ExplorePlaces() {
+  // UI state
   const [city, setCity] = useState('Paris')
-  const [types, setTypes] = useState<string[]>([])
-  const [themes, setThemes] = useState<string[]>([])
+  const [typeSel, setTypeSel] = useState<string | null>(null)
+  const [vibeSel, setVibeSel] = useState<string | null>(null)
+  const [places, setPlaces] = useState<UIPlace[]>([])
   const [loading, setLoading] = useState(false)
-  const [places, setPlaces] = useState<Place[]>([])
+  const [idx, setIdx] = useState(0)
 
-  const typeOptions = ['restaurant', 'cafe', 'bar', 'museum', 'gallery', 'park', 'landmark', 'wine_bar', 'bakery', 'club']
-  const themeOptions = ['date_night', 'good_for_solo', 'family_friendly', 'nightlife', 'design', 'architecture', 'photo_spot', 'rainy_day', 'sunset']
+  const typeOptions = ['restaurant','cafe','bar','museum','gallery','park','landmark','wine bar','bakery','club']
+  const vibeOptions = ['date night','good for solo','family friendly','nightlife','design','architecture','photo spot','rainy day','sunset']
 
-  function toggle(list: string[], value: string) {
-    return list.includes(value) ? list.filter((x) => x !== value) : [...list, value]
-  }
-
-  async function load() {
+  async function fetchPlaces(opts?: { city?: string; type?: string | null; vibe?: string | null }) {
     setLoading(true)
-    const p = new URLSearchParams()
-    if (city) p.set('city', city)
-    if (types.length) p.set('types', types.join(','))
-    if (themes.length) p.set('themes', themes.join(','))
-    p.set('limit', '24')
-    const res = await fetch(`/api/places?${p.toString()}`)
-    const json = await res.json()
-    setPlaces(json?.places || [])
-    setLoading(false)
+    try {
+      const u = new URL('/api/places', window.location.origin)
+      const cityArg = (opts?.city ?? city).trim()
+      if (cityArg) u.searchParams.set('city', cityArg)
+      if (opts?.type) u.searchParams.set('types', opts.type)
+      if (opts?.vibe) u.searchParams.set('vibes', opts.vibe)
+      u.searchParams.set('limit', '24')
+      const r = await fetch(u.toString())
+      const j = await r.json()
+      const list: UIPlace[] = j.places || []
+      setPlaces(list)
+      setIdx(0)
+    } catch (e) {
+      console.error(e)
+      setPlaces([])
+      setIdx(0)
+    } finally {
+      setLoading(false)
+    }
   }
 
+  // Initial fetch
   useEffect(() => {
-    load()
+    fetchPlaces({ city })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // Rotate featured place every 10 seconds
   useEffect(() => {
-    load()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [city, types, themes])
+    if (places.length <= 1) return
+    const id = setInterval(() => {
+      setIdx((i) => {
+        if (places.length <= 1) return 0
+        // pick a different random index
+        let next = i
+        while (next === i && places.length > 1) {
+          next = Math.floor(Math.random() * places.length)
+        }
+        return next
+      })
+    }, 10000)
+    return () => clearInterval(id)
+  }, [places.length])
 
-  return (
-    <section className="py-16">
-      <div className="mx-auto max-w-6xl px-4">
-        <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <h2 className="text-3xl font-serif font-semibold text-midnight">Explore places</h2>
-            <p className="text-slate-600">Pick a city and refine by place type and vibe.</p>
-          </div>
-          <div className="flex flex-wrap gap-3">
-            <input
-              value={city}
-              onChange={(e) => setCity(e.target.value)}
-              placeholder="City (e.g. Paris)"
-              className="h-10 w-44 rounded-lg border border-slate-300 px-3 text-sm focus:border-emerald focus:outline-none focus:ring-2 focus:ring-emerald/30"
-            />
-            <button onClick={load} className="h-10 rounded-lg border border-slate-300 px-3 text-sm hover:bg-slate-50">
-              Refresh
-            </button>
-          </div>
-        </div>
+  // Featured place photo gallery
+  function Featured({ p }: { p: UIPlace }) {
+    const [photos, setPhotos] = useState<string[]>([])
+    const [photoIdx, setPhotoIdx] = useState(0)
 
-        <div className="mb-6 grid gap-3 sm:grid-cols-2">
-          <fieldset>
-            <legend className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500">Type</legend>
-            <div className="flex flex-wrap gap-2">
-              {typeOptions.map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => setTypes((cur) => toggle(cur, t))}
-                  className={clsx(
-                    'rounded-full border px-3 py-1.5 text-sm',
-                    types.includes(t) ? 'border-black bg-white text-black shadow-sm' : 'border-slate-300 text-slate-800 hover:bg-slate-50'
-                  )}
-                >
-                  {t.replaceAll('_', ' ')}
-                </button>
+    useEffect(() => {
+      let on = true
+      setPhotos([])
+      setPhotoIdx(0)
+      const u = new URL('/api/google/place-details', window.location.origin)
+      u.searchParams.set('name', p.name)
+      u.searchParams.set('city', p.city)
+      u.searchParams.set('lat', String(p.lat))
+      u.searchParams.set('lng', String(p.lng))
+      fetch(u.toString())
+        .then((r) => (r.ok ? r.json() : null))
+        .then((d) => {
+          if (!on) return
+          const arr = Array.isArray(d?.photos)
+            ? (d.photos as string[])
+            : d?.photoUrl
+            ? [d.photoUrl as string]
+            : []
+          setPhotos(arr)
+        })
+        .catch(() => on && setPhotos([]))
+      return () => {
+        on = false
+      }
+    }, [p.id])
+
+    // auto-rotate photos every 4s
+    useEffect(() => {
+      if (photos.length <= 1) return
+      const id = setInterval(() => setPhotoIdx((i) => (i + 1) % photos.length), 4000)
+      return () => clearInterval(id)
+    }, [photos.length])
+
+    const image = photos[photoIdx] || `https://maps.googleapis.com/maps/api/staticmap?center=${p.lat},${p.lng}&zoom=15&size=1000x600&maptype=roadmap&markers=color:red|${p.lat},${p.lng}&key=${process.env.NEXT_PUBLIC_GOOGLE_MAPS_KEY}`
+
+    return (
+      <a href={p.google_url} target="_blank" rel="noreferrer" className="block rounded-2xl overflow-hidden border border-slate-200 bg-white shadow-sm hover:shadow-md transition">
+        <div className="relative aspect-[16/10] w-full overflow-hidden bg-slate-100">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={image} alt={p.name} className="h-full w-full object-cover" />
+          {photos.length > 1 && (
+            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 flex gap-1">
+              {photos.slice(0,6).map((_, i) => (
+                <span key={i} className={clsx('h-1.5 w-6 rounded-full', i === photoIdx ? 'bg-white/90' : 'bg-white/40')} />
               ))}
             </div>
-          </fieldset>
-
-          <fieldset>
-            <legend className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-500">Vibe</legend>
-            <div className="flex flex-wrap gap-2">
-              {themeOptions.map((t) => (
-                <button
-                  key={t}
-                  type="button"
-                  onClick={() => setThemes((cur) => toggle(cur, t))}
-                  className={clsx(
-                    'rounded-full border px-3 py-1.5 text-sm',
-                    themes.includes(t) ? 'border-black bg-white text-black shadow-sm' : 'border-slate-300 text-slate-800 hover:bg-slate-50'
-                  )}
-                >
-                  {t.replaceAll('_', ' ')}
-                </button>
-              ))}
-            </div>
-          </fieldset>
+          )}
         </div>
-
-        {loading ? (
-          <div className="py-10 text-center text-slate-600">Loading places…</div>
-        ) : places.length === 0 ? (
-          <div className="py-10 text-center text-slate-600">No places match your filters.</div>
-        ) : (
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {places.map((p) => (
-              <PlaceCard key={p.id} place={p} />
+        <div className="p-5">
+          <div className="text-2xl font-serif font-semibold text-slate-900">{p.name}</div>
+          {p.description && <p className="mt-2 text-slate-700 line-clamp-3">{p.description}</p>}
+          <div className="mt-3 flex flex-wrap gap-2">
+            {(p.types || []).slice(0, 3).map((t) => (
+              <span key={t} className="rounded-full bg-slate-100 px-2 py-1 text-xs text-slate-700">{t}</span>
+            ))}
+            {(p.themes || []).slice(0, 2).map((t) => (
+              <span key={t} className="rounded-full bg-emerald-50 px-2 py-1 text-xs text-emerald-700">{t}</span>
             ))}
           </div>
+        </div>
+      </a>
+    )
+  }
+
+  // single-select pills
+  function SinglePill({
+    label,
+    active,
+    onClick,
+  }: {
+    label: string
+    active: boolean
+    onClick: () => void
+  }) {
+    return (
+      <button
+        onClick={onClick}
+        className={clsx(
+          'rounded-full border px-3 py-1.5 text-sm transition',
+          active ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-800 border-slate-300 hover:bg-slate-50'
         )}
+      >
+        {label}
+      </button>
+    )
+  }
+
+  // handlers
+  const applyFilters = () => fetchPlaces({ city, type: typeSel, vibe: vibeSel })
+
+  return (
+    <section className="bg-[#F7F5EF] py-16">
+      <div className="mx-auto max-w-6xl px-4">
+        <div className="mb-8">
+          <h2 className="text-3xl font-serif font-semibold text-slate-900">Explore places</h2>
+          <p className="text-slate-600 mt-1">Pick a city and refine by place type and vibe. One from each.</p>
+        </div>
+
+        <div className="grid gap-8 md:grid-cols-2 items-start">
+          {/* Left: featured place */}
+          <div>
+            {loading ? (
+              <div className="text-slate-600">Loading…</div>
+            ) : places.length === 0 ? (
+              <div className="text-slate-600">No places match your filters.</div>
+            ) : (
+              <Featured p={places[idx]} />
+            )}
+          </div>
+
+          {/* Right: controls */}
+          <div className="md:pl-6">
+            <div className="flex items-center gap-2">
+              <input
+                value={city}
+                onChange={(e) => setCity(e.target.value)}
+                className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm w-full max-w-[220px]"
+                placeholder="Paris"
+              />
+              <button onClick={applyFilters} className="rounded-lg bg-slate-900 text-white px-4 py-2 text-sm font-semibold">Refresh</button>
+            </div>
+
+            <div className="mt-6">
+              <div className="text-xs font-medium text-slate-500 mb-2">TYPE</div>
+              <div className="flex flex-wrap gap-2">
+                {typeOptions.map((t) => (
+                  <SinglePill
+                    key={t}
+                    label={t}
+                    active={typeSel === t}
+                    onClick={() => {
+                      const next = typeSel === t ? null : t
+                      setTypeSel(next)
+                      fetchPlaces({ city, type: next, vibe: vibeSel })
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-6">
+              <div className="text-xs font-medium text-slate-500 mb-2">VIBE</div>
+              <div className="flex flex-wrap gap-2">
+                {vibeOptions.map((v) => (
+                  <SinglePill
+                    key={v}
+                    label={v}
+                    active={vibeSel === v}
+                    onClick={() => {
+                      const next = vibeSel === v ? null : v
+                      setVibeSel(next)
+                      fetchPlaces({ city, type: typeSel, vibe: next })
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+
+            {places.length > 1 && (
+              <div className="mt-6 text-sm text-slate-600">
+                Showing <span className="font-medium">{idx + 1}</span> of {places.length}. Rotates every 10s.
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </section>
   )
@@ -1011,8 +1173,8 @@ export default function Page() {
         destination={destination}
       />
 
-      {/* NEW: Explore places from Supabase */}
-      <ExplorePlacesSection />
+  {/* NEW: Explore places from Supabase */}
+  <ExplorePlaces />
 
       <section className="mx-auto max-w-6xl px-4 py-16">
         <Inspiration />
