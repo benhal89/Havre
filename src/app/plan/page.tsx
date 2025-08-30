@@ -133,6 +133,7 @@ function HeroTop({
   plan,
   onApply,
   interests,
+  actions,
 }: {
   destination: string
   city: string
@@ -147,10 +148,19 @@ function HeroTop({
   plan: Itinerary | null
   onApply: () => void
   interests: string
+  actions: {
+    onRegenerate: () => void
+    regenerating: boolean
+    mailHref: string
+    onCopyLink: () => void
+    onExport: () => void
+  }
 }) {
   const paceLabel = { relaxed: 'Relaxed', balanced: 'Balanced', packed: 'Packed' }[pace]
   const wakeLabel = { early: 'Early bird', standard: 'Standard', late: 'Night owl' }[wake]
   const budgetLabel = ['—', '€', '€€', '€€€', '€€€€', '€€€€€'][budget] || '€€€'
+  const summaries =
+    plan?.days?.slice(0, 3).map((d, i) => summarizeDay(d as any, i)) ?? []
 
   return (
     <section className="mb-6 overflow-hidden rounded-2xl border bg-white">
@@ -160,10 +170,44 @@ function HeroTop({
           style={{ backgroundImage: `url(${cityHeroFor(city)})` }}
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/25 to-transparent" />
+        {/* Actions over hero image */}
+        <div className="absolute right-3 top-3 flex items-center gap-2">
+          <button
+            onClick={actions.onRegenerate}
+            disabled={actions.regenerating}
+            className="inline-flex items-center gap-2 rounded-lg border border-white/30 bg-white/20 px-3 py-2 text-sm font-medium text-white backdrop-blur hover:bg-white/30 disabled:opacity-50"
+          >
+            <RefreshCw className="h-4 w-4" /> {actions.regenerating ? 'Planning…' : 'Regenerate'}
+          </button>
+          <a
+            href={actions.mailHref}
+            className="inline-flex items-center gap-2 rounded-lg border border-white/30 bg-white/20 px-3 py-2 text-sm font-medium text-white backdrop-blur hover:bg-white/30"
+          >
+            <Mail className="h-4 w-4" /> Email
+          </a>
+          <button
+            onClick={actions.onCopyLink}
+            className="inline-flex items-center gap-2 rounded-lg border border-white/30 bg-white/20 px-3 py-2 text-sm font-medium text-white backdrop-blur hover:bg-white/30"
+          >
+            <Share2 className="h-4 w-4" /> Copy link
+          </button>
+          <button
+            onClick={actions.onExport}
+            disabled={!plan}
+            className="inline-flex items-center gap-2 rounded-lg border border-white/30 bg-white/20 px-3 py-2 text-sm font-medium text-white backdrop-blur hover:bg-white/30 disabled:opacity-50"
+          >
+            <Download className="h-4 w-4" /> Export
+          </button>
+        </div>
         <div className="absolute inset-x-0 bottom-0 p-5 sm:p-6">
           <h1 className="text-2xl sm:text-3xl font-semibold text-white drop-shadow">
             {days}-day trip to {destination}
           </h1>
+          {summaries.length > 0 && (
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-white/90 drop-shadow">
+              {summaries.join(' ')}
+            </p>
+          )}
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <ChoiceChip icon={<span className="text-xs">⏱</span>} label={paceLabel} />
             <ChoiceChip icon={<span className="text-xs">€</span>} label={`Budget: ${budgetLabel}`} />
@@ -589,59 +633,6 @@ export default function PlanPage() {
 
   return (
     <div className="min-h-screen bg-white">
-      {/* top header */}
-      <div className="border-b bg-white/95 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
-          <div className="min-w-0">
-            <div className="truncate text-sm text-slate-500">
-              <Link href="/" className="text-sky-700 hover:underline">
-                Havre
-              </Link>{' '}
-              / Planner
-            </div>
-            <div className="truncate text-lg font-semibold text-slate-900">Planning for {destination}</div>
-            <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-600">
-              {homeName && (
-                <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5">
-                  <MapPin className="h-3.5 w-3.5" /> {homeName}
-                </span>
-              )}
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5">hours: {hours}</span>
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5">pace: {pace}</span>
-              <span className="rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5">budget: {budget}</span>
-            </div>
-          </div>
-
-          <div className="flex shrink-0 flex-wrap items-center gap-2">
-            <button
-              onClick={generate}
-              disabled={loading}
-              className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50"
-            >
-              <RefreshCw className="h-4 w-4" /> {loading ? 'Planning…' : 'Regenerate'}
-            </button>
-            <a
-              href={mailHref}
-              className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50"
-            >
-              <Mail className="h-4 w-4" /> Email
-            </a>
-            <button
-              onClick={copyLink}
-              className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50"
-            >
-              <Share2 className="h-4 w-4" /> Copy link
-            </button>
-            <button
-              onClick={exportText}
-              disabled={!plan}
-              className="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium text-slate-800 hover:bg-slate-50 disabled:opacity-50"
-            >
-              <Download className="h-4 w-4" /> Export
-            </button>
-          </div>
-        </div>
-      </div>
 
       {/* hero + quick adjust */}
       <div className="mx-auto max-w-6xl px-4 pt-6">
@@ -659,6 +650,13 @@ export default function PlanPage() {
   plan={plan}
   onApply={() => { updateURLWithPrefs(); generate() }}
   interests={interestsLabel}
+  actions={{
+    onRegenerate: generate,
+    regenerating: loading,
+    mailHref,
+    onCopyLink: copyLink,
+    onExport: exportText,
+  }}
 />
       </div>
 
