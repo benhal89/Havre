@@ -156,6 +156,7 @@ function HeroTop({
     onExport: () => void
   }
 }) {
+
   const paceLabel = { relaxed: 'Relaxed', balanced: 'Balanced', packed: 'Packed' }[pace]
   const wakeLabel = { early: 'Early bird', standard: 'Standard', late: 'Night owl' }[wake]
   const budgetLabel = ['—', '€', '€€', '€€€', '€€€€', '€€€€€'][budget] || '€€€'
@@ -447,6 +448,16 @@ export default function PlanPage() {
   const [loading, setLoading] = useState(false)
   const [err, setErr] = useState<string | null>(null)
 
+  // --- Mode & area-mode results (keeps itinerary as default)
+  const initialMode = (params.get('mode') === 'areas' ? 'areas' : 'itinerary') as 'areas' | 'itinerary'
+  const [mode, setMode] = useState<'areas' | 'itinerary'>(initialMode)
+  const [areaModeDays, setAreaModeDays] = useState<Array<{
+    areaName: string
+    areaHero: string | null
+    summary: string
+    slots: AreaSlot[]
+  }>>([])
+
   function updateURLWithPrefs() {
     const u = new URL(window.location.href)
     const sp = u.searchParams
@@ -459,11 +470,18 @@ export default function PlanPage() {
     window.history.replaceState({}, '', u.toString())
   }
 
-  useEffect(() => {
-    if (autostart && !plan && !loading) void generate()
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autostart])
+useEffect(() => {
+  if (!autostart || loading) return
+  if (mode === 'areas') { void generateAreas() } else { void generate() }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [autostart, mode])
 
+  // Generate AREAS view (for now, it reuses generate() to fill plan and derive areaDays)
+  async function generateAreas() {
+    await generate()
+  }
+
+  // Generate the full itinerary (server call), then we derive areaDays from it
   async function generate() {
     const interestsParam = params.get('interests') || ''
     const interestsArr = interestsParam
@@ -648,7 +666,11 @@ export default function PlanPage() {
   wake={sWake}
   setWake={(w) => setSWake(w)}
   plan={plan}
-  onApply={() => { updateURLWithPrefs(); generate() }}
+  onApply={() => {
+    updateURLWithPrefs()
+    if (mode === 'areas') generateAreas()
+    else generate()
+  }}
   interests={interestsLabel}
   actions={{
     onRegenerate: generate,
@@ -658,6 +680,34 @@ export default function PlanPage() {
     onExport: exportText,
   }}
 />
+
+      <div className="mt-2 flex justify-end">
+        <div className="inline-flex items-center gap-2 text-xs text-slate-600">
+          <span>Mode:</span>
+          <button
+            onClick={() => {
+              setMode('itinerary')
+              const u = new URL(window.location.href)
+              u.searchParams.delete('mode')
+              window.history.replaceState({}, '', u.toString())
+            }}
+            className={clsx('rounded px-2 py-1 border', mode === 'itinerary' ? 'bg-sky-600 text-white border-sky-600' : 'hover:bg-slate-50')}
+          >
+            Itinerary
+          </button>
+          <button
+            onClick={() => {
+              setMode('areas')
+              const u = new URL(window.location.href)
+              u.searchParams.set('mode','areas')
+              window.history.replaceState({}, '', u.toString())
+            }}
+            className={clsx('rounded px-2 py-1 border', mode === 'areas' ? 'bg-sky-600 text-white border-sky-600' : 'hover:bg-slate-50')}
+          >
+            Areas
+          </button>
+        </div>
+      </div>
       </div>
 
       {/* main */}
@@ -666,11 +716,13 @@ export default function PlanPage() {
           <div className="mb-6 rounded-xl border bg-slate-50 p-4">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <div className="text-sm font-medium text-slate-900">Ready to plan?</div>
+                <div className="text-sm font-medium text-slate-900">
+                  Ready to {mode === 'areas' ? 'suggest areas' : 'plan your days'}?
+                </div>
                 <div className="text-sm text-slate-600">We’ll generate a day-by-day plan using your preferences.</div>
               </div>
               <button
-                onClick={generate}
+                onClick={mode === 'areas' ? generateAreas : generate}
                 className="rounded-lg bg-sky-600 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-700"
               >
                 Generate itinerary
@@ -687,18 +739,22 @@ export default function PlanPage() {
 
         {err && <div className="my-6 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">{err}</div>}
 
-        {plan && !loading && (
+        {!loading && (
           <div className="mt-6 space-y-8">
             {areaDays.map((d, i) => (
               <AreaDayCard
                 key={i}
                 dayIndex={i}
-                city={city} 
+                city={city}
                 area={{ name: d.areaName, imageUrl: d.areaHero || undefined }}
                 summary={d.summary}
                 slots={d.slots as AreaSlot[]}
-                onSwapSimilar={(dayIdx, slotKey) => swapPlace({ mode: 'similar', dayIdx, slotKey: slotKey as SlotKey })}
-                onSwapAny={(dayIdx, slotKey) => swapPlace({ mode: 'any', dayIdx, slotKey: slotKey as SlotKey })}
+                onSwapSimilar={(dayIdx, slotKey) =>
+                  swapPlace({ mode: 'similar', dayIdx, slotKey: slotKey as any })
+                }
+                onSwapAny={(dayIdx, slotKey) =>
+                  swapPlace({ mode: 'any', dayIdx, slotKey: slotKey as any })
+                }
               />
             ))}
           </div>
